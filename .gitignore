@@ -1,0 +1,22 @@
+# XcodeGen 產生，不進版控（見 CLAUDE.md）
+*.xcodeproj
+*.xcworkspace
+
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
