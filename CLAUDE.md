@@ -109,6 +109,13 @@ xcodegen && xcodebuild -scheme WhereAreYou -destination 'platform=iOS Simulator,
 
 測試沒跑過就不要說通過。有測試失敗就直接說哪個失敗、貼輸出，不要含糊帶過。
 
+**兩個會被誤讀成程式碼壞掉的環境問題**：
+
+- `Simulator device failed to launch ... Busy ("Application failed preflight checks")`
+  是模擬器卡住，不是程式碼問題。`xcrun simctl shutdown all` 之後重跑即可
+- `Build input files cannot be found: .../Node.swift` 通常代表 `.xcodeproj` 是別的分支
+  產生的。切分支後先跑 `xcodegen generate`
+
 ---
 
 ## Figma 操作已知地雷
