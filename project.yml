@@ -1,0 +1,67 @@
+name: WhereAreYou
+
+options:
+  bundleIdPrefix: com.chienchuanw
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+
+targets:
+  WhereAreYou:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.chienchuanw.whereareyou
+        # 可執行檔名不帶空格（TEST_HOST 會用它組路徑）；帶空格的名稱走 CFBundleDisplayName
+        PRODUCT_NAME: WhereAreYou
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: Where Are You
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        # 權限文案與 Figma 的權限彈窗畫面一致（Screens — Onboarding & Permissions）
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: 只在你建檔或更新物件時取用一次，用來預填位置並記在移動歷史裡。不會在背景追蹤。
+        INFOPLIST_KEY_NSCameraUsageDescription: 用來替物件拍一張辨識照。照片只存在這台裝置上，不會上傳。
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: 用來從相簿挑一張物件的辨識照。照片只存在這台裝置上，不會上傳。
+
+  WhereAreYouTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+      - path: Resources
+        buildPhase: resources
+    dependencies:
+      - target: WhereAreYou
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.chienchuanw.whereareyou.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  WhereAreYou:
+    build:
+      targets:
+        WhereAreYou: all
+        WhereAreYouTests: [test]
+    test:
+      targets:
+        - WhereAreYouTests
+      gatherCoverageData: true
+    run:
+      config: Debug
