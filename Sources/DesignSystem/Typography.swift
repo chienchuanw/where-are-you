@@ -3,7 +3,7 @@ import SwiftUI
 /// 字級 token。名稱與 Figma 的文字樣式（`Text/…`）一一對應。
 ///
 /// **字型現況**：Figma 用 Inter 走拉丁與數字、中文交給系統黑體。Inter 尚未打包進 app，
-/// 所以這裡暫時用系統字型搭配相同的字重與尺寸。要換成 Inter 時只需改 `font(for:)` 一處，
+/// 所以這裡暫時用系統字型搭配相同的字重與尺寸。要換成 Inter 時只需改 `font` 這個計算屬性，
 /// 其餘的尺寸、行高、字距都已經與 Figma 對齊，且由 `TokenParityTests` 守著。
 public enum TypographyToken: String, CaseIterable, Sendable {
     case largeTitle = "Text/Large Title"
