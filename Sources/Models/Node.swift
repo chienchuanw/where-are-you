@@ -36,6 +36,18 @@ final class Node {
     @Relationship(deleteRule: .nullify, inverse: \Node.home)
     var homedItems: [Node]?
 
+    // 這三個 inverse 存在的唯一目的是讓刪除安全。少了它們，`MoveEvent` 的參照在
+    // 節點被刪除並存檔後會變成失效的 fault，再讀就整個當掉。有了它們，參照會被
+    // 乾淨地清成 nil，歷史則靠 MoveEvent 自己的名稱快照繼續讀得出來。
+    @Relationship(deleteRule: .nullify, inverse: \MoveEvent.node)
+    var moveEvents: [MoveEvent]?
+
+    @Relationship(deleteRule: .nullify, inverse: \MoveEvent.from)
+    var movedOutEvents: [MoveEvent]?
+
+    @Relationship(deleteRule: .nullify, inverse: \MoveEvent.to)
+    var movedInEvents: [MoveEvent]?
+
     init(name: String, parent: Node? = nil, home: Node? = nil, note: String = "", isPinned: Bool = false) {
         self.id = UUID()
         self.name = name

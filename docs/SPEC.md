@@ -77,6 +77,22 @@ Bundle ID：`com.chienchuanw.whereareyou`
 「回想最後一次在哪」常常需要往回看不只一步。而且誤操作可還原、日後要做「常去哪」分析不必重建資料。
 寫入成本極低。
 
+**歷史同時存名稱快照，不只存參照。**
+
+`MoveEvent` 除了 `node` / `from` / `to` 三個關聯，另存 `nodeName` / `fromName` / `toName`
+三個字串。空字串在 `fromName` 代表建檔、在 `toName` 代表移到頂層。
+
+理由有兩個，第二個是硬性的：
+
+1. **歷史是只增不改的紀錄，不該因為容器被刪就掉資訊。** 「書房抽屜 ← 登山包」在登山包
+   被刪之後仍然要讀得出來，否則 §4.4 的時間軸會出現無法解讀的空白。刪除容器正是最
+   需要回溯的情境，卻剛好是資訊被抹掉的情境，這說不通。
+2. **不存快照的話，程式會當掉。** 三個關聯必須在 `Node` 上宣告對應的 inverse 並設
+   `deleteRule: .nullify`，否則節點被刪除並存檔後再讀 `event.to`，SwiftData 會拋
+   `This model instance was invalidated because its backing data could no longer be
+   found in the store`。inverse 補上之後參照會安全地變成 `nil` —— 但那也代表參照本身
+   靠不住，所以顯示一律以名稱快照為準，關聯只用於「該節點還在時可以點進去」。
+
 ### 2.3 CloudKit 相容性（重要）
 
 MVP **只存本機、不開同步**，但模型從第一天就遵守 CloudKit 限制：

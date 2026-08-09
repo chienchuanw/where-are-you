@@ -244,6 +244,34 @@ struct TreeQueriesTests {
         #expect(Set(events.compactMap(\.node?.name)) == ["筆袋", "橡皮擦"])
     }
 
+    @Test("容器被刪除並存檔後，歷史仍讀得出來且不會當掉")
+    func historySurvivesDeletingAReferencedContainer() throws {
+        let w = try makeWorld()
+        try w.keycard.move(to: w.pencilCase, in: w.context)
+        try w.context.save()
+
+        try w.pencilCase.delete(in: w.context)
+        try w.context.save()
+
+        // 沒有名稱快照的話，這一行會拋 "This model instance was invalidated"
+        let events = try w.context.fetch(FetchDescriptor<MoveEvent>())
+        let keycardEvent = try #require(events.first { $0.nodeName == "門禁卡" })
+        #expect(keycardEvent.fromName == "玄關")
+        #expect(keycardEvent.toName == "筆袋")
+        #expect(keycardEvent.to == nil)   // 參照安全地斷開，快照留下來
+    }
+
+    @Test("建檔與移到頂層在快照裡分別是空字串")
+    func snapshotsUseAnEmptyStringForNowhere() throws {
+        let w = try makeWorld()
+        try w.pencilCase.move(to: nil, in: w.context)
+
+        let events = try w.context.fetch(FetchDescriptor<MoveEvent>())
+        let event = try #require(events.first { $0.nodeName == "筆袋" })
+        #expect(event.fromName == "上班包")
+        #expect(event.toName == "")
+    }
+
     @Test("清掉歸屬地不算位置變更，不寫歷史")
     func clearingHomeIsNotAMove() throws {
         let w = try makeWorld()
