@@ -83,9 +83,14 @@ extension Node {
         for child in childNodes {
             child.parent = grandparent
             child.updatedAt = Date()
+
+            // 這是系統造成的位置變更，但歷史記的是「東西在哪」而不是「誰移動的」。
+            // 少了這筆，物件的歷史會斷在一個已經不存在的容器上。
+            context.insert(MoveEvent(node: child, from: self, to: grandparent))
         }
 
-        // 別留下指向已刪節點的懸空歸屬地
+        // 別留下指向已刪節點的懸空歸屬地。這是「應該在哪」的變更，不是位置變更，
+        // 所以不寫 MoveEvent。
         for item in homedItems ?? [] {
             item.home = nil
             item.updatedAt = Date()
