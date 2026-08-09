@@ -60,7 +60,9 @@ enum Library {
         if let current { seen.insert(ObjectIdentifier(current)) }
 
         for event in events {
-            guard let destination = event.to else { continue }   // 移到頂層沒有容器可記
+            // to 為 nil 有兩種原因：當初就是移到頂層，或是那個容器後來被刪了。
+            // 兩種都該排除 —— 前者沒有容器可記，後者容器已經不存在。
+            guard let destination = event.to else { continue }
             let key = ObjectIdentifier(destination)
             guard !seen.contains(key) else { continue }
             seen.insert(key)
