@@ -220,4 +220,38 @@ struct TreeQueriesTests {
         #expect(w.pen.home == nil)
         #expect(w.eraser.home == nil)
     }
+
+    @Test("被上移的子節點各留一筆歷史，位置變更不會斷鏈")
+    func deletingRecordsAMoveEventForEachReparentedChild() throws {
+        let w = try makeWorld()
+        try w.pencilCase.delete(in: w.context)
+
+        let events = try w.context.fetch(FetchDescriptor<MoveEvent>())
+        #expect(events.count == 1)                       // 只有鑑子筆在筆袋裡
+        #expect(events.first?.node?.name == "鑑子筆")
+        #expect(events.first?.from?.name == "筆袋")
+        #expect(events.first?.to?.name == "上班包")
+    }
+
+    @Test("刪除頂層容器時，子節點的歷史記到頂層")
+    func deletingARootRecordsAMoveToNowhere() throws {
+        let w = try makeWorld()
+        try w.workBag.delete(in: w.context)
+
+        let events = try w.context.fetch(FetchDescriptor<MoveEvent>())
+        #expect(events.count == 2)                       // 筆袋、橡皮擦
+        #expect(events.allSatisfy { $0.to == nil })
+        #expect(Set(events.compactMap(\.node?.name)) == ["筆袋", "橡皮擦"])
+    }
+
+    @Test("清掉歸屬地不算位置變更，不寫歷史")
+    func clearingHomeIsNotAMove() throws {
+        let w = try makeWorld()
+        // 橡皮擦的 home 是筆袋，但人在上班包 —— 刪筆袋只清它的 home，沒有移動它
+        try w.pencilCase.delete(in: w.context)
+
+        let events = try w.context.fetch(FetchDescriptor<MoveEvent>())
+        #expect(events.contains { $0.node?.name == "橡皮擦" } == false)
+        #expect(w.eraser.parent === w.workBag)
+    }
 }
