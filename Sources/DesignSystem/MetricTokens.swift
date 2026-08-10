@@ -40,9 +40,17 @@ public enum Size {
     public static let thumb:    CGFloat = 40
     public static let rowMin:   CGFloat = 44
     public static let touchMin: CGFloat = 44
+    public static let button:   CGFloat = 50
+
+    /// 列高。v2 拿掉了分隔線，層級改由列高與群組間距撐起，見 `docs/SPEC.md` §9。
+    public static let row: CGFloat = 56
+
+    /// 空狀態的字符底盒。
+    public static let iconHolder: CGFloat = 56
 
     static let table: [String: CGFloat] = [
         "Size.iconSm": iconSm, "Size.iconMd": iconMd, "Size.iconLg": iconLg,
         "Size.thumb": thumb, "Size.rowMin": rowMin, "Size.touchMin": touchMin,
+        "Size.button": button, "Size.row": row, "Size.iconHolder": iconHolder,
     ]
 }
