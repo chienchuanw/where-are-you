@@ -117,25 +117,72 @@ struct ContainerRow: View {
 }
 
 /// 盤點頁的物件列：狀態記號、名稱、副標。副標只在「缺」與「外來」時出現。
+///
+/// 這一列有**兩個**觸控目標，不是一個：記號負責切換「在／不在」（見 `docs/SPEC.md` §4.2e），
+/// 名稱那一段負責推進到子容器的盤點頁。合成一個的話，出門前想核對的人每點一次就會被
+/// 推進下一頁，而那正是他最不想發生的事。
 struct ItemRow: View {
     let row: InventoryRow
+    /// 有子節點的東西在 UI 上就是容器，點名稱進得去；缺件也要進得去 ——
+    /// 那正是你要去確認它跑到哪的時候。
+    let isNavigable: Bool
+    let onToggle: () -> Void
 
     var body: some View {
         HStack(spacing: Spacing.md) {
-            StatusGlyph(status: row.status, side: Size.iconSm)
-
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(row.node.name)
-                    .typography(.body)
-                    .foregroundStyle(Color.textPrimary)
-
-                if let subtitle = row.subtitle {
-                    Text(subtitle)
-                        .typography(.footnote)
-                        .foregroundStyle(Color.textSecondary)
-                }
+            Button(action: onToggle) {
+                StatusGlyph(status: row.status, side: Size.iconSm)
+                    .frame(width: Size.touchMin, height: Size.touchMin)
+                    .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
+            // 觸控範圍撐到 44pt，版面上仍只佔字符的 20pt，否則名稱會被推離 Figma 的位置。
+            .frame(width: Size.iconSm, height: Size.iconSm)
+
+            if isNavigable {
+                NavigationLink(value: row.node) { label }
+                    .buttonStyle(.plain)
+            } else {
+                label
+            }
+        }
+        .frame(minHeight: Size.row)
+    }
+
+    private var label: some View {
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
+            Text(row.node.name)
+                .typography(.body)
+                .foregroundStyle(Color.textPrimary)
+
+            if let subtitle = row.subtitle {
+                Text(subtitle)
+                    .typography(.footnote)
+                    .foregroundStyle(Color.textSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+}
+
+/// 「它在哪？」sheet 的一列選項。右側的「最近用過」是一句補充，不是一個分類 ——
+/// 見 `docs/SPEC.md` §4.3a 為什麼不用區段標題把兩組分開。
+struct DestinationRow: View {
+    let destination: MoveDestination
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            Text(destination.name)
+                .typography(.body)
+                .foregroundStyle(Color.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if destination.isRecent {
+                Text("最近用過")
+                    .typography(.subhead)
+                    .foregroundStyle(Color.textTertiary)
+            }
         }
         .frame(minHeight: Size.row)
         .contentShape(Rectangle())

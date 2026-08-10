@@ -76,6 +76,35 @@ enum SampleData {
 
         for name in ["螢幕", "鍵盤", "外接硬碟", "傘", "室內鞋"] { _ = node(name, in: office) }
         for name in ["行照", "雨傘", "面紙", "手機架", "充電座"] { _ = node(name, in: car) }
+
+        seedHistory(context, raincoat: balcony, drawer: drawer, hikingBag: hikingBag)
+    }
+
+    /// 「它在哪？」sheet 的第一組選項讀的是 `MoveEvent`（見 SPEC §4.4b）。上面那棵樹是
+    /// 直接建出來的、沒有經過任何一次移動，所以那一組會是空的，跟 Figma frame 對不起來。
+    ///
+    /// 補的這幾筆不是憑空捏的，而是把樹上已經存在的異常講完整：雨衣的歸屬地是登山包
+    /// 卻人在陽台（所以它是缺件），充電線的歸屬地是書房抽屜卻人在登山包（所以它是外來件）。
+    /// 沒有這兩筆歷史，那兩個狀態等於憑空發生。
+    private static func seedHistory(
+        _ context: ModelContext, raincoat balcony: Node, drawer: Node, hikingBag: Node
+    ) {
+        func find(_ name: String, in parent: Node) -> Node? {
+            parent.childNodes.first { $0.name == name }
+        }
+
+        let day: TimeInterval = 86_400
+        let now = Date()
+
+        if let cable = find("充電線", in: hikingBag) {
+            context.insert(MoveEvent(node: cable, from: drawer, to: hikingBag, at: now - 5 * day))
+        }
+        if let battery = find("電池", in: drawer) {
+            context.insert(MoveEvent(node: battery, from: nil, to: drawer, at: now - 3 * day))
+        }
+        if let raincoat = find("雨衣", in: balcony) {
+            context.insert(MoveEvent(node: raincoat, from: hikingBag, to: balcony, at: now - day))
+        }
     }
 }
 #endif
