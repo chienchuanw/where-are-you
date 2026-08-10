@@ -1,14 +1,20 @@
 import SwiftUI
+import SwiftData
+import OSLog
 
 /// 容器盤點頁。對照 Figma `Screens — Light / Container — Inventory` 與 `Container — Empty`，
 /// 行為見 `docs/SPEC.md` §4.2。
 ///
-/// 這一版只做顯示與導覽 —— 點記號切換「在／不在」需要「它在哪？」sheet 才有去處，
-/// 那支畫面不在這一支分支的範圍內。
+/// 這是這個 app 的主要更新入口 —— 使用者不會在搬動物品的當下開 app，他是在出門前核包時
+/// 才發現資料要修，所以寫入做在他自然會來的這一頁。
 struct ContainerInventoryView: View {
     let container: Node
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+
+    /// 正在問「移到哪」的那個節點。收掉 sheet 而沒有選就什麼都不發生。
+    @State private var nodeBeingMoved: Node?
 
     var body: some View {
         let rows = container.inventoryRows
@@ -25,14 +31,11 @@ struct ContainerInventoryView: View {
                     ScrollView {
                         VStack(spacing: 0) {
                             ForEach(rows) { row in
-                                if row.node.childNodes.isEmpty && row.status != .missing {
-                                    ItemRow(row: row)
-                                } else {
-                                    // 有子節點的東西在 UI 上就是容器，點得進去自己的盤點頁。
-                                    // 缺件也要點得進去 —— 那正是你要去確認它跑到哪的時候。
-                                    NavigationLink(value: row.node) { ItemRow(row: row) }
-                                        .buttonStyle(.plain)
-                                }
+                                ItemRow(
+                                    row: row,
+                                    isNavigable: isNavigable(row),
+                                    onToggle: { toggle(row) }
+                                )
                             }
                         }
                     }
@@ -44,9 +47,67 @@ struct ContainerInventoryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.bgGrouped)
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $nodeBeingMoved) { node in
+            WhereIsItSheet(node: node) { destination in
+                move(node, to: destination)
+                nodeBeingMoved = nil
+            }
+        }
+        #if DEBUG
+        // 見 `DebugLaunch`：sheet 只有點記號才會開，simctl 送不出點擊。
+        .task {
+            guard let name = DebugLaunch.itemToMove else { return }
+            nodeBeingMoved = rows.first { $0.node.name == name }?.node
+        }
+        #endif
+    }
+
+    // MARK: - 狀態切換（見 `docs/SPEC.md` §4.2e）
+
+    private func toggle(_ row: InventoryRow) {
+        switch row.status {
+        case .present, .foreign:
+            // 兩者都代表「人在這裡」，切成不在都要問移到哪。
+            nodeBeingMoved = row.node
+        case .missing:
+            // 目的地已經確定了 —— 使用者正站在這個容器的盤點頁上按「它在這」。
+            // 再彈一次 sheet 是要他重講一次剛剛已經說完的話。
+            move(row.node, to: container)
+        }
+    }
+
+    private func move(_ node: Node, to destination: Node?) {
+        do {
+            try node.move(to: destination, in: context)
+        } catch {
+            // 選單已經濾掉會成環的選項（§4.3b），走到這裡代表那層防護漏了，
+            // 不是使用者做錯什麼。
+            Self.log.error("""
+                「\(node.name, privacy: .public)」移不過去，資料沒有被改動：\
+                \(error.localizedDescription, privacy: .public)
+                """)
+            return
+        }
+
+        do {
+            try context.save()
+        } catch {
+            // 與上面那個是不同的故障：移動已經套用在記憶體裡，畫面也已經更新，
+            // 只是沒有落到磁碟。合成同一句話會讓下次除錯分不出資料到底改了沒有。
+            Self.log.error("""
+                「\(node.name, privacy: .public)」已經移動，但存不進資料庫，重開 app 後會回到舊位置：\
+                \(error.localizedDescription, privacy: .public)
+                """)
+        }
     }
 
     // MARK: -
+
+    /// 有子節點的東西在 UI 上就是容器，點得進去自己的盤點頁；缺件也要點得進去 ——
+    /// 那正是你要去確認它跑到哪的時候。
+    private func isNavigable(_ row: InventoryRow) -> Bool {
+        !row.node.childNodes.isEmpty || row.status == .missing
+    }
 
     @ViewBuilder
     private func summary(isEmpty: Bool) -> some View {
@@ -69,6 +130,8 @@ struct ContainerInventoryView: View {
         }
     }
 
-    // TODO: 新增流程（Figma `Item — Add`）不在這一支分支的範圍內，按鈕還沒有去處。
+    // TODO: 新增流程（Figma `Item — Add`）是下一支分支的範圍，按鈕還沒有去處。
     private func addFirstItem() {}
+
+    private static let log = Logger(subsystem: "com.chienchuanw.whereareyou", category: "inventory")
 }
