@@ -40,7 +40,10 @@
     { "name": "size/icon-lg",    "ios": "Size.iconLg",   "value": 28 },
     { "name": "size/thumb",      "ios": "Size.thumb",    "value": 40 },
     { "name": "size/row-min",    "ios": "Size.rowMin",   "value": 44 },
-    { "name": "size/touch-min",  "ios": "Size.touchMin", "value": 44 }
+    { "name": "size/touch-min",  "ios": "Size.touchMin", "value": 44 },
+    { "name": "size/button",     "ios": "Size.button",   "value": 50 },
+    { "name": "size/row",        "ios": "Size.row",      "value": 56 },
+    { "name": "size/icon-holder","ios": "Size.iconHolder", "value": 56 }
   ],
   "textStyles": [
     { "name": "Text/Large Title",       "family": "Inter", "style": "Bold",      "size": 30, "lineHeight": 35, "tracking": -0.3 },
