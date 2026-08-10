@@ -83,9 +83,19 @@ enum Library {
     }
 }
 
+/// 首頁兩組與盤點頁共用的名稱排序 —— 數字照人類的直覺排（`充電線 2` 在 `充電線 10` 前面）。
+///
+/// 共用的是這個比較式本身，不是某個 `sorted` 呼叫：首頁排的是 `Node`，盤點頁排的是
+/// `InventoryRow`，型別對不起來。各自再寫一次的話，之後改了校對規則只會有一邊跟著動，
+/// 而兩邊的排序看起來又一直是對的，這種漂移要很久才會被發現。
+enum NameOrder {
+    static func isAscending(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.localizedStandardCompare(rhs) == .orderedAscending
+    }
+}
+
 extension Array where Element == Node {
-    /// 首頁兩組與盤點頁共用的排序 —— 依名稱，數字照人類的直覺排（`充電線 2` 在 `充電線 10` 前面）。
     func sortedByName() -> [Node] {
-        sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        sorted { NameOrder.isAscending($0.name, $1.name) }
     }
 }

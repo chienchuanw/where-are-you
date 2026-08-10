@@ -75,8 +75,7 @@ extension Node {
 
         // 依名稱排序，不依狀態分組：盤點是邊核對邊切換的過程，依狀態排會讓剛按過的
         // 那一列跳走，核到一半找不到看到哪裡。見 `docs/SPEC.md` §4.2c。
-        return (present + absent)
-            .sorted { $0.node.name.localizedStandardCompare($1.node.name) == .orderedAscending }
+        return (present + absent).sorted { NameOrder.isAscending($0.node.name, $1.node.name) }
     }
 
     /// 標頭行的資料。見 `docs/SPEC.md` §4.2d。
