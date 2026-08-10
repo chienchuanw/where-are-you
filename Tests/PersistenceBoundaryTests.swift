@@ -180,4 +180,54 @@ struct PersistenceBoundaryTests {
         #expect(refetched.home == nil)
         #expect(refetched.parent == nil)
     }
+
+    // MARK: - 「它在哪？」sheet 寫進去的那條路
+
+    @Test("移動之後存檔，重新讀回來位置真的變了，舊容器也不再認得它")
+    func aMoveSurvivesASave() throws {
+        let context = try freshContext()
+        let bag = Node(name: "登山包")
+        let balcony = Node(name: "陽台")
+        let raincoat = Node(name: "雨衣", parent: bag)
+        for node in [bag, balcony, raincoat] { context.insert(node) }
+        try context.save()
+
+        try raincoat.move(to: balcony, in: context)
+        try context.save()
+
+        let nodes = try context.fetch(FetchDescriptor<Node>())
+        let refetched = try #require(nodes.first { $0.name == "雨衣" })
+        #expect(refetched.parent?.name == "陽台")
+
+        // 舊容器那一側要一起更新，否則它的遞迴件數會繼續把搬走的東西算進去。
+        let oldParent = try #require(nodes.first { $0.name == "登山包" })
+        #expect(oldParent.childNodes.isEmpty)
+        #expect(oldParent.subtreeCount == 0)
+    }
+
+    @Test("移到頂層之後存檔，parent 仍然是空的，歷史記得它去了頂層")
+    func movingToTopLevelSurvivesASave() throws {
+        let context = try freshContext()
+        let bag = Node(name: "登山包")
+        let raincoat = Node(name: "雨衣", parent: bag)
+        context.insert(bag); context.insert(raincoat)
+        try context.save()
+
+        // 「不放在任何容器裡」走的就是這條 —— 見 `docs/SPEC.md` §4.3a。
+        // 把關聯設成 nil 是 CLAUDE.md 持久化規則點名的第二類，一定要跨過存檔再驗。
+        try raincoat.move(to: nil, in: context)
+        try context.save()
+
+        let refetched = try #require(
+            try context.fetch(FetchDescriptor<Node>()).first { $0.name == "雨衣" }
+        )
+        #expect(refetched.parent == nil)
+
+        let events = try context.fetch(FetchDescriptor<MoveEvent>())
+        let move = try #require(events.first { $0.nodeName == "雨衣" })
+        #expect(move.fromName == "登山包")
+        // toName 是空字串代表移到頂層，不是「不知道去哪」。見 `docs/SPEC.md` §2.2。
+        #expect(move.toName == "")
+        #expect(move.to == nil)
+    }
 }
