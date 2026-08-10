@@ -1,5 +1,5 @@
 {
-  "_source": "Figma file a6S9XlccNqWHC8jJZ63kh6 — exported 2026-08-09. 這份檔案是 Figma 的匯出結果，不要手改；改 Figma 之後重新匯出。",
+  "_source": "Figma file a6S9XlccNqWHC8jJZ63kh6 — exported 2026-08-10. 這份檔案是 Figma 的匯出結果，不要手改；改 Figma 之後重新匯出。",
   "colors": [
     { "name": "color/accent",           "ios": "Color.accent",           "light": "#2F6F4E", "dark": "#4CAF7D" },
     { "name": "color/bg/accent-subtle", "ios": "Color.bgAccentSubtle",   "light": "#E9F1EC", "dark": "#132219" },
@@ -43,13 +43,14 @@
     { "name": "size/touch-min",  "ios": "Size.touchMin", "value": 44 }
   ],
   "textStyles": [
-    { "name": "Text/Large Title", "family": "Inter", "style": "Bold",      "size": 30, "lineHeight": 35, "tracking": -0.3 },
-    { "name": "Text/Title 2",     "family": "Inter", "style": "Bold",      "size": 21, "lineHeight": 27, "tracking": -0.2 },
-    { "name": "Text/Title 3",     "family": "Inter", "style": "Semi Bold", "size": 19, "lineHeight": 25, "tracking": -0.15 },
-    { "name": "Text/Headline",    "family": "Inter", "style": "Semi Bold", "size": 17, "lineHeight": 23, "tracking": -0.1 },
-    { "name": "Text/Body",        "family": "Inter", "style": "Medium",    "size": 17, "lineHeight": 23, "tracking": -0.1 },
-    { "name": "Text/Subhead",     "family": "Inter", "style": "Regular",   "size": 14, "lineHeight": 20, "tracking": 0 },
-    { "name": "Text/Footnote",    "family": "Inter", "style": "Regular",   "size": 13, "lineHeight": 18, "tracking": 0 },
-    { "name": "Text/Caption",     "family": "Inter", "style": "Semi Bold", "size": 12, "lineHeight": 16, "tracking": 1.6 }
+    { "name": "Text/Large Title",       "family": "Inter", "style": "Bold",      "size": 30, "lineHeight": 35, "tracking": -0.3 },
+    { "name": "Text/Title 2",           "family": "Inter", "style": "Bold",      "size": 21, "lineHeight": 27, "tracking": -0.2 },
+    { "name": "Text/Title 3",           "family": "Inter", "style": "Semi Bold", "size": 19, "lineHeight": 25, "tracking": -0.15 },
+    { "name": "Text/Headline",          "family": "Inter", "style": "Semi Bold", "size": 17, "lineHeight": 23, "tracking": -0.1 },
+    { "name": "Text/Body",              "family": "Inter", "style": "Medium",    "size": 17, "lineHeight": 23, "tracking": -0.1 },
+    { "name": "Text/Subhead",           "family": "Inter", "style": "Regular",   "size": 14, "lineHeight": 20, "tracking": 0 },
+    { "name": "Text/Footnote",          "family": "Inter", "style": "Regular",   "size": 13, "lineHeight": 18, "tracking": 0 },
+    { "name": "Text/Footnote Emphasis", "family": "Inter", "style": "Semi Bold", "size": 13, "lineHeight": 18, "tracking": 0 },
+    { "name": "Text/Caption",           "family": "Inter", "style": "Semi Bold", "size": 12, "lineHeight": 16, "tracking": 1.6 }
   ]
 }

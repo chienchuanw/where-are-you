@@ -13,6 +13,8 @@ public enum TypographyToken: String, CaseIterable, Sendable {
     case body       = "Text/Body"
     case subhead    = "Text/Subhead"
     case footnote   = "Text/Footnote"
+    /// 徽章專用。與 `footnote` 同尺寸，只差字重 —— 見 `docs/SPEC.md` §9 為什麼不共用。
+    case footnoteEmphasis = "Text/Footnote Emphasis"
     case caption    = "Text/Caption"
 
     public var size: CGFloat {
@@ -23,7 +25,7 @@ public enum TypographyToken: String, CaseIterable, Sendable {
         case .headline:   17
         case .body:       17
         case .subhead:    14
-        case .footnote:   13
+        case .footnote, .footnoteEmphasis: 13
         case .caption:    12
         }
     }
@@ -36,7 +38,7 @@ public enum TypographyToken: String, CaseIterable, Sendable {
         case .headline:   23
         case .body:       23
         case .subhead:    20
-        case .footnote:   18
+        case .footnote, .footnoteEmphasis: 18
         case .caption:    16
         }
     }
@@ -49,7 +51,7 @@ public enum TypographyToken: String, CaseIterable, Sendable {
         case .headline:   -0.1
         case .body:       -0.1
         case .subhead:     0
-        case .footnote:    0
+        case .footnote, .footnoteEmphasis: 0
         case .caption:     1.6
         }
     }
@@ -58,7 +60,7 @@ public enum TypographyToken: String, CaseIterable, Sendable {
     public var figmaStyle: String {
         switch self {
         case .largeTitle, .title2: "Bold"
-        case .title3, .headline, .caption: "Semi Bold"
+        case .title3, .headline, .footnoteEmphasis, .caption: "Semi Bold"
         case .body: "Medium"
         case .subhead, .footnote: "Regular"
         }
