@@ -56,6 +56,26 @@
 **UI 不寫 XCUITest**。畫面的驗收方式是「跑起來截圖，與 Figma frame 逐項對照」。
 理由：UI test 態、慢、易碎，而且抓不到「長得跟 Figma 不一樣」這種真正該抓的問題。
 
+### 跨持久化邊界必須測
+
+**只在記憶體裡操作 `ModelContext` 而不 `save()`，等於沒有測到 SwiftData。**
+不存檔就不會觸發 delete rule 傳播、關聯 faulting、預設值套用、schema 驗證 ——
+這些全部只在持久化邊界的另一側才會出錯。
+
+以下三類操作，**每一項至少要有一個測試是 `save()` 之後重新 fetch 再斷言**：
+
+1. 刪除模型（含 delete rule 對其他物件的連帶影響）
+2. 讓關聯變成 `nil`（不論是手動清除還是 nullify 造成）
+3. 新增或修改 `@Model` 的屬性與關聯（預設值、optional 性、inverse 是否正確配對）
+
+這條規則是有代價才寫下來的：`MoveEvent` 的關聯少了 inverse 與 delete rule，容器被刪除
+並存檔後再讀就拋 `This model instance was invalidated because its backing data could no
+longer be found in the store`。當時**所有測試都沒有 `save()`**，所以整組測試對這個
+情境完全盲目，是 code review 實際跑出來才發現的。
+
+回歸測試若守的是既有正確行為，**要先確認它真的有牙齒** —— 暫時把修法拿掉、看它變紅、
+再還原。永遠綠的測試不算測試。
+
 ## 4. Token 紀律（讓「同步」可被驗證）
 
 SwiftUI 端**不得出現任何硬編碼的顏色、間距、圓角、字級**。
