@@ -9,9 +9,7 @@ enum Library {
 
     /// 「地點」= 所有根節點，依名稱排序。
     static func places(in context: ModelContext) throws -> [Node] {
-        try context.fetch(FetchDescriptor<Node>())
-            .filter { $0.parent == nil }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        places(among: try context.fetch(FetchDescriptor<Node>()))
     }
 
     /// 「釘選」= 所有被釘的節點，不管它在樹的哪一層。
@@ -19,9 +17,17 @@ enum Library {
     /// 既是根節點又被釘選的容器會同時出現在兩組 —— 釘選是使用者主動的置頂，
     /// 不該因為它剛好是根節點就消失。
     static func pinned(in context: ModelContext) throws -> [Node] {
-        try context.fetch(FetchDescriptor<Node>())
-            .filter(\.isPinned)
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        pinned(among: try context.fetch(FetchDescriptor<Node>()))
+    }
+
+    // 畫面用 `@Query` 拿到的是陣列，不是 ModelContext。分組語意只有一份，
+    // 上面兩個取完資料就轉呼叫這裡，免得畫面自己重新解讀一次。
+    static func places(among nodes: [Node]) -> [Node] {
+        nodes.filter { $0.parent == nil }.sortedByName()
+    }
+
+    static func pinned(among nodes: [Node]) -> [Node] {
+        nodes.filter(\.isPinned).sortedByName()
     }
 
     // MARK: - 搜尋
@@ -30,10 +36,14 @@ enum Library {
     ///
     /// 備註要納入，是因為使用者常把型號、顏色寫在那裡（「充電線」三個字底下可能有五條）。
     static func search(_ query: String, in context: ModelContext) throws -> [Node] {
+        search(query, among: try context.fetch(FetchDescriptor<Node>()))
+    }
+
+    static func search(_ query: String, among nodes: [Node]) -> [Node] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return [] }
 
-        return try context.fetch(FetchDescriptor<Node>())
+        return nodes
             .filter { node in
                 node.name.localizedCaseInsensitiveContains(needle)
                     || node.note.localizedCaseInsensitiveContains(needle)
@@ -70,5 +80,12 @@ enum Library {
             if result.count == limit { break }
         }
         return result
+    }
+}
+
+extension Array where Element == Node {
+    /// 首頁兩組與盤點頁共用的排序 —— 依名稱，數字照人類的直覺排（`充電線 2` 在 `充電線 10` 前面）。
+    func sortedByName() -> [Node] {
+        sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 }

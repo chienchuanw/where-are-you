@@ -1,0 +1,217 @@
+import SwiftUI
+
+/// Figma 元件頁（`Rows` / `Fields` / `Badge & Button` / `Chrome`）的 SwiftUI 對應。
+///
+/// 每一支都只用 token 組成：顏色、間距、圓角、字級一律走 `Color.*` / `Spacing.*` /
+/// `Radius.*` / `Size.*` / `.typography(_:)`，不出現任何裸數字。
+
+// MARK: - Chrome
+
+/// 大標題列。被推進去的畫面在標題上方帶返回鍵，首頁沒有。見 `docs/SPEC.md` §4.0。
+///
+/// Figma 的 `NavBar/Style=LargeTitle` 上方留了 52pt 給狀態列。程式碼這邊不複製那個數字 ——
+/// 真實裝置的安全區高度各機不同，交給系統的 safe area 才會對。
+struct LargeTitleBar: View {
+    let title: String
+    var onBack: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            if let onBack {
+                Button(action: onBack) {
+                    ChevronLeftGlyph(side: Size.iconSm, tint: .accent)
+                        .frame(width: Size.touchMin, height: Size.touchMin)
+                        .contentShape(Rectangle())
+                }
+                // 觸控範圍撐到 44pt，但版面上仍只佔字符本身的 20pt，
+                // 否則大標題會被推離 Figma 的位置。
+                .frame(width: Size.iconSm, height: Size.iconSm)
+                .accessibilityLabel("返回")
+            }
+
+            Text(title)
+                .typography(.largeTitle)
+                .foregroundStyle(Color.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Spacing.xxl)
+        .padding(.bottom, Spacing.xs)
+    }
+}
+
+// MARK: - Fields
+
+struct SearchField: View {
+    @Binding var text: String
+    var placeholder: String
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            SearchGlyph(side: Size.iconSm, tint: .textSecondary)
+
+            TextField(text: $text) {
+                Text(placeholder).foregroundStyle(Color.textTertiary)
+            }
+            .typography(.body)
+            .foregroundStyle(Color.textPrimary)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .submitLabel(.search)
+        }
+        .padding(.horizontal, Spacing.md)
+        .frame(height: Size.touchMin)
+        .background(Color.bgField, in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+    }
+}
+
+// MARK: - Rows
+
+/// 群組標籤。零分隔線的版面裡，它是唯一的分組訊號，所以字距開到 1.6 而不是靠亮度差。
+struct SectionHeader: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .typography(.caption)
+            .foregroundStyle(Color.textTertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, Spacing.xl)
+    }
+}
+
+struct MissingBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text("缺 \(count)")
+            .typography(.footnoteEmphasis)
+            .foregroundStyle(Color.textDanger)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .background(Color.bgDangerSubtle, in: Capsule())
+    }
+}
+
+/// 首頁的容器列：名稱、遞迴件數、缺件徽章。無 chevron —— 整列就是觸控目標。
+struct ContainerRow: View {
+    let node: Node
+
+    var body: some View {
+        let missing = node.missingCount
+
+        HStack(spacing: Spacing.sm) {
+            Text(node.name)
+                .typography(.body)
+                .foregroundStyle(Color.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text("\(node.subtreeCount) 件")
+                .typography(.subhead)
+                .foregroundStyle(Color.textSecondary)
+
+            if missing > 0 { MissingBadge(count: missing) }
+        }
+        .frame(minHeight: Size.row)
+        .contentShape(Rectangle())
+    }
+}
+
+/// 盤點頁的物件列：狀態記號、名稱、副標。副標只在「缺」與「外來」時出現。
+struct ItemRow: View {
+    let row: InventoryRow
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            StatusGlyph(status: row.status, side: Size.iconSm)
+
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text(row.node.name)
+                    .typography(.body)
+                    .foregroundStyle(Color.textPrimary)
+
+                if let subtitle = row.subtitle {
+                    Text(subtitle)
+                        .typography(.footnote)
+                        .foregroundStyle(Color.textSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: Size.row)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Badge & Button
+
+struct TintedButton: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .typography(.headline)
+                .foregroundStyle(Color.textAccent)
+                .padding(.horizontal, Spacing.xl)
+                .frame(height: Size.button)
+                .background(
+                    Color.bgAccentSubtle,
+                    in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                )
+        }
+    }
+}
+
+// MARK: - EmptyState
+
+/// 把空狀態放在剩下的空間裡，重心偏上。
+///
+/// Figma 是用固定高度的 spacer 把它頂到那個位置的，那個數字沒有對應的 token，
+/// 換一個機身高度也就不成立。這裡改成按比例分配：幾何正中央看起來會偏低，
+/// 上一份、下兩份才落在 Figma 那個位置。
+struct OpticallyCentred<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: Spacing.xxxl)
+            content
+            Spacer(minLength: Spacing.xxxl)
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+struct EmptyStateView<Glyph: View>: View {
+    let glyph: Glyph
+    let title: String
+    let message: String
+    let actionLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: Spacing.md) {
+            glyph
+                .frame(width: Size.iconHolder, height: Size.iconHolder)
+                .background(
+                    Color.bgField,
+                    in: RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                )
+
+            Text(title)
+                .typography(.title3)
+                .foregroundStyle(Color.textPrimary)
+
+            Text(message)
+                .typography(.subhead)
+                .foregroundStyle(Color.textSecondary)
+                .multilineTextAlignment(.center)
+
+            TintedButton(label: actionLabel, action: action)
+                .padding(.top, Spacing.sm)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Spacing.xxxl)
+    }
+}
