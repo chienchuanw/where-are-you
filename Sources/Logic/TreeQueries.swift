@@ -67,9 +67,16 @@ extension Node {
 
         let previousParent = parent
         parent = newParent
-        updatedAt = Date()
 
-        context.insert(MoveEvent(node: self, from: previousParent, to: newParent))
+        // 三個節點都動過了：被搬的那個換了位置，兩邊的容器則是內容變了（舊的少一件、
+        // 新的多一件）。只標記被搬的那個，盤點頁的標頭會在剛被編輯過的當下顯示舊日期 ——
+        // 而 §4.2d 存在的唯一理由就是不讓舊資料被讀成現在的狀態。
+        let now = Date()
+        updatedAt = now
+        previousParent?.updatedAt = now
+        newParent?.updatedAt = now
+
+        context.insert(MoveEvent(node: self, from: previousParent, to: newParent, at: now))
     }
 
     // MARK: - 刪除

@@ -165,6 +165,33 @@ struct TreeQueriesTests {
         #expect(w.workBag.subtreeCount == 1)   // 只剩橡皮擦
     }
 
+    @Test("一次移動要把兩邊的容器都標記成剛動過")
+    func movingTouchesBothContainers() throws {
+        let w = try makeWorld()
+        let stale = Date(timeIntervalSince1970: 0)
+        for node in [w.workBag, w.hallway, w.keycard] { node.updatedAt = stale }
+
+        try w.keycard.move(to: w.workBag, in: w.context)
+
+        // 舊的少一件、新的多一件，兩邊的內容都變了。少了任何一邊，盤點頁的標頭
+        // 就會在剛被編輯過的當下顯示舊日期。見 `docs/SPEC.md` §4.2d。
+        #expect(w.hallway.updatedAt > stale)
+        #expect(w.workBag.updatedAt > stale)
+        #expect(w.keycard.updatedAt > stale)
+    }
+
+    @Test("移到頂層時只有舊容器要被標記，沒有新容器可以標記")
+    func movingToRootTouchesOnlyTheOldContainer() throws {
+        let w = try makeWorld()
+        let stale = Date(timeIntervalSince1970: 0)
+        for node in [w.workBag, w.pencilCase] { node.updatedAt = stale }
+
+        try w.pencilCase.move(to: nil, in: w.context)
+
+        #expect(w.workBag.updatedAt > stale)
+        #expect(w.pencilCase.updatedAt > stale)
+    }
+
     // MARK: - 移動歷史
 
     @Test("每次移動寫一筆歷史，記下從哪到哪")

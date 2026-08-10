@@ -56,9 +56,12 @@ enum Library {
     /// 「它在哪？」sheet 的第一組選項：最近被移入過的容器，新的在前、去除重複。
     ///
     /// 排除正在檢視的容器 —— 把東西移到它已經在的地方沒有意義。
+    ///
+    /// `limit` 傳 `nil` 代表全部回傳。sheet 走的是這條：那一組的上限必須套在
+    /// `MoveDestinations` 的排除規則之後，在這裡先砍會讓名額被不能選的容器佔掉。
     static func recentContainers(
         excluding current: Node?,
-        limit: Int,
+        limit: Int? = nil,
         in context: ModelContext
     ) throws -> [Node] {
         let events = try context.fetch(
@@ -77,7 +80,7 @@ enum Library {
             guard !seen.contains(key) else { continue }
             seen.insert(key)
             result.append(destination)
-            if result.count == limit { break }
+            if let limit, result.count == limit { break }
         }
         return result
     }
