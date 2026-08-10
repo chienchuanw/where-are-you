@@ -237,6 +237,58 @@ struct InventoryTests {
         #expect(row.subtitle == "不在任何容器裡")
     }
 
+    // MARK: - 點記號之後該做什麼（§4.2e）
+
+    @Test("「在」與「外來」都要問移到哪，「缺」直接移進來")
+    func theToggleActionFollowsTheStatus() throws {
+        let w = try makeWorld()
+        let rows = w.hikingBag.inventoryRows
+
+        func action(_ name: String) throws -> ToggleAction {
+            try #require(rows.first { $0.node.name == name }).toggleAction(in: w.hikingBag)
+        }
+
+        #expect(try action("頭燈") == .askWhereItIs)       // ✓
+        #expect(try action("充電線") == .askWhereItIs)     // ○ 人也在這裡，與 ✓ 同一邊
+        #expect(try action("雨衣") == .moveIntoThisContainer) // ✗ 目的地已經確定
+    }
+
+    @Test("缺件若移進來會成環，記號不可點")
+    func aMissingAncestorCannotBeToggled() throws {
+        let w = try makeWorld()
+
+        // 使用者把收納箱的歸屬地填成儲藏室，但儲藏室本身放在收納箱裡。
+        // 兩個條件同時成立，收納箱就會出現在儲藏室的清單上、標成 ✗。
+        let box = Node(name: "收納箱")
+        let store = Node(name: "儲藏室", parent: box)
+        box.home = store
+        w.context.insert(box); w.context.insert(store)
+
+        let row = try #require(store.inventoryRows.first { $0.node.name == "收納箱" })
+        #expect(row.status == .missing)
+        // 按下去要做的事違反 §3.4，一定會被拒絕 —— 所以它一開始就不該是可按的。
+        #expect(row.toggleAction(in: store) == .unavailable)
+    }
+
+    // MARK: - 標頭日期（§4.2d）
+
+    @Test("東西被移出去之後，標頭的日期跟著更新")
+    func movingSomethingOutRefreshesTheHeaderDate() throws {
+        let w = try makeWorld()
+        let before = w.hikingBag.inventorySummary.lastUpdated
+
+        // 水壺沒有歸屬地，所以搬走之後它既不在子樹裡、也不算缺件。
+        // 少了「兩邊容器都標記成剛動過」這條，件數會掉但日期會停在上個月。
+        try w.bottle.move(to: w.balcony, in: w.context)
+
+        let after = w.hikingBag.inventorySummary
+        #expect(after.lastUpdated > before)
+        #expect(after.count == w.hikingBag.subtreeCount)
+    }
+
+    // 沒有寫「移進來」的對應測試：搬進來的東西本來就落在新容器的子樹裡，
+    // 日期靠它自己的 updatedAt 就會更新，那個測試不管修不修都是綠的。
+
     // MARK: -
 
     private static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {

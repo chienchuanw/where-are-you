@@ -18,8 +18,9 @@ struct WhereIsItSheet: View {
 
     @State private var query = ""
 
-    /// 「最近用過」最多三個。它是捷徑，不是另一份清單。見 `docs/SPEC.md` §4.3a。
-    private static let recentLimit = 3
+    /// 最近被移入過的容器。算一次就好 —— 它讀的是整份移動歷史，那份只增不減，
+    /// 掛在計算屬性上會變成每次重繪都重掃一遍。上限由 `MoveDestinations` 在排除之後才套。
+    @State private var recent: [Node] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,6 +47,7 @@ struct WhereIsItSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(Radius.xl)
+        .task { recent = loadRecentContainers() }
         #if DEBUG
         // 見 `DebugLaunch`：讓「找不到」那個狀態的截圖步驟可重現。
         .task { if let seeded = DebugLaunch.initialSheetSearch { query = seeded } }
@@ -56,7 +58,7 @@ struct WhereIsItSheet: View {
     private var options: some View {
         let destinations = isSearching
             ? MoveDestinations.search(query, for: node, among: nodes)
-            : MoveDestinations.options(for: node, among: nodes, recent: recentContainers)
+            : MoveDestinations.options(for: node, among: nodes, recent: recent)
 
         if destinations.isEmpty {
             // 搜不到不給「建立「X」」—— 使用者正在回答「這東西移到哪」，
@@ -88,11 +90,9 @@ struct WhereIsItSheet: View {
 
     /// 排除的是**節點目前所在的容器**，不是正在檢視的畫面。從盤點頁開 sheet 時兩者
     /// 剛好相同（§4.2e），但依據是 `parent`。見 `docs/SPEC.md` §4.4b。
-    private var recentContainers: [Node] {
+    private func loadRecentContainers() -> [Node] {
         do {
-            return try Library.recentContainers(
-                excluding: node.parent, limit: Self.recentLimit, in: context
-            )
+            return try Library.recentContainers(excluding: node.parent, in: context)
         } catch {
             // 讀不到歷史不該讓整支 sheet 開不起來 —— 少掉的只是捷徑那一組，
             // 下面的完整清單仍然選得到每一個容器。但一定要講出來：「還沒有任何移動歷史」

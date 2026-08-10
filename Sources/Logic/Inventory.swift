@@ -22,6 +22,34 @@ struct InventoryRow: Identifiable {
     var id: UUID { node.id }
 }
 
+/// 點下狀態記號之後該做什麼。見 `docs/SPEC.md` §4.2e。
+///
+/// 這是行為，不是版面，所以放在邏輯層讓測試搆得到 —— 畫面不寫 XCUITest（`CLAUDE.md` §3），
+/// 留在 `View` 的 private method 裡等於沒有任何東西守著這個 app 唯一的寫入路徑。
+enum ToggleAction: Equatable {
+    /// 開「它在哪？」sheet 問移到哪。
+    case askWhereItIs
+    /// 直接移進正在檢視的這個容器，不問。
+    case moveIntoThisContainer
+    /// 不可點。
+    case unavailable
+}
+
+extension InventoryRow {
+    func toggleAction(in container: Node) -> ToggleAction {
+        switch status {
+        // 兩者都代表「人在這裡」，切成不在都要問移到哪。
+        case .present, .foreign:
+            .askWhereItIs
+
+        case .missing:
+            // 缺件的定義沒有排除「它其實是這個容器的祖先」，所以移進來有可能成環。
+            // 與 §4.3b 同一條原則：一個按了一定會失敗的控制項不該是可按的。
+            node.canMove(to: container) ? .moveIntoThisContainer : .unavailable
+        }
+    }
+}
+
 /// 盤點頁的標頭行。
 struct InventorySummary {
     /// 遞迴件數，與容器列上顯示的是同一個數字。

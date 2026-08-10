@@ -82,6 +82,37 @@ struct MoveDestinationsTests {
         #expect(!rest.map(\.isRecent).contains(true))
     }
 
+    @Test("最近用過的上限套用在排除之後，不是之前")
+    func theRecentCapIsAppliedAfterTheExclusions() throws {
+        let w = try makeWorld()
+        // 最新的兩個都不能選：登山包是自己，急救包是它的子孫。
+        // 上限若套在排除之前，這一組只會剩書房抽屜一個。
+        let options = MoveDestinations.options(
+            for: w.hikingBag,
+            among: try allNodes(w.context),
+            recent: [w.hikingBag, w.firstAid, w.drawer, w.balcony, w.home]
+        )
+        let recent = options.filter(\.isRecent)
+        #expect(recent.map(\.name) == ["書房抽屜", "陽台", "家"])
+    }
+
+    @Test("最近用過最多三個，其餘退回名稱排序那一組")
+    func atMostThreeRecentContainers() throws {
+        let w = try makeWorld()
+        let options = MoveDestinations.options(
+            for: w.headlamp,
+            among: try allNodes(w.context),
+            recent: [w.balcony, w.drawer, w.study, w.home, w.firstAid]
+        )
+        let recent = options.filter(\.isRecent)
+        #expect(recent.map(\.name) == ["陽台", "書房抽屜", "書房"])
+
+        // 第四、第五個沒有消失，只是回到依名稱排序的那一組。
+        let names = options.map(\.name)
+        #expect(names.contains("家"))
+        #expect(names.contains("急救包"))
+    }
+
     @Test("最後一列固定是「不放在任何容器裡」")
     func theTopLevelOptionIsAlwaysLast() throws {
         let w = try makeWorld()

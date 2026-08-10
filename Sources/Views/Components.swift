@@ -123,21 +123,17 @@ struct ContainerRow: View {
 /// 推進下一頁，而那正是他最不想發生的事。
 struct ItemRow: View {
     let row: InventoryRow
+    /// 這一列的記號按下去該做什麼。`.unavailable` 時記號照畫，但不給觸控目標。
+    let action: ToggleAction
     /// 有子節點的東西在 UI 上就是容器，點名稱進得去；缺件也要進得去 ——
     /// 那正是你要去確認它跑到哪的時候。
     let isNavigable: Bool
     let onToggle: () -> Void
 
     var body: some View {
-        HStack(spacing: Spacing.md) {
-            Button(action: onToggle) {
-                StatusGlyph(status: row.status, side: Size.iconSm)
-                    .frame(width: Size.touchMin, height: Size.touchMin)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            // 觸控範圍撐到 44pt，版面上仍只佔字符的 20pt，否則名稱會被推離 Figma 的位置。
-            .frame(width: Size.iconSm, height: Size.iconSm)
+        // 間距由記號那一塊自己吃掉，這樣它的觸控範圍剛好停在名稱開始的地方。
+        HStack(spacing: 0) {
+            toggle
 
             if isNavigable {
                 NavigationLink(value: row.node) { label }
@@ -147,6 +143,27 @@ struct ItemRow: View {
             }
         }
         .frame(minHeight: Size.row)
+    }
+
+    /// 記號的觸控範圍是「字符 + 它與名稱之間的間距」寬、整列高。
+    ///
+    /// 刻意**不**撐成 44pt 寬：那會往左溢出到頁面的 24pt 內距裡，而那片空白正是捲動時
+    /// 手指落下的地方。這顆按鈕做的是沒有確認、也沒有復原的寫入（`docs/SPEC.md` §4.2e），
+    /// 誤觸的代價比目標窄一點高。`LargeTitleBar` 的返回鍵可以溢出，因為按錯只是回上一頁。
+    @ViewBuilder
+    private var toggle: some View {
+        let glyph = StatusGlyph(status: row.status, side: Size.iconSm)
+            .frame(width: Size.iconSm + Spacing.md, height: Size.row, alignment: .leading)
+
+        if action == .unavailable {
+            // 按了一定會失敗的控制項不該是可按的。記號本身照畫 —— 那個狀態是真的。
+            glyph
+        } else {
+            Button(action: onToggle) {
+                glyph.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var label: some View {
@@ -161,7 +178,9 @@ struct ItemRow: View {
                     .foregroundStyle(Color.textSecondary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // 高度要撐滿整列，否則導覽的觸控目標只有文字本身那二十幾點，
+        // 看起來是 56pt 的一列、實際上上下都是死區。
+        .frame(maxWidth: .infinity, minHeight: Size.row, alignment: .leading)
         .contentShape(Rectangle())
     }
 }

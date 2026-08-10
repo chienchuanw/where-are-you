@@ -21,6 +21,12 @@ struct MoveDestination: Identifiable {
 /// 這裡只負責把三段接起來並套用排除規則。
 enum MoveDestinations {
 
+    /// 「最近用過」那一組最多幾個。見 `docs/SPEC.md` §4.3a。
+    ///
+    /// 上限由這裡套用而不是交給 `Library.recentContainers` 的 `limit`，因為它必須落在
+    /// 排除規則**之後**。先砍到三個再排除，名額會被不能選的容器佔掉，合格的後補不會遞補。
+    static let recentLimit = 3
+
     /// 沒有在搜尋時的完整清單：最近用過 → 其餘依名稱 → 不放在任何容器裡。
     static func options(for node: Node, among all: [Node], recent: [Node]) -> [MoveDestination] {
         let blocked = blockedIDs(for: node)
@@ -30,7 +36,7 @@ enum MoveDestinations {
 
         // 最近用過的那一組也要過濾。`Library.recentContainers` 只排除一個容器，
         // 循環防呆不在它的職責範圍內。
-        let recents = recent.filter(isAllowed)
+        let recents = Array(recent.filter(isAllowed).prefix(recentLimit))
         let promoted = Set(recents.map(ObjectIdentifier.init))
 
         let rest = all

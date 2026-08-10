@@ -31,10 +31,12 @@ struct ContainerInventoryView: View {
                     ScrollView {
                         VStack(spacing: 0) {
                             ForEach(rows) { row in
+                                let action = row.toggleAction(in: container)
                                 ItemRow(
                                     row: row,
+                                    action: action,
                                     isNavigable: isNavigable(row),
-                                    onToggle: { toggle(row) }
+                                    onToggle: { perform(action, on: row.node) }
                                 )
                             }
                         }
@@ -64,15 +66,18 @@ struct ContainerInventoryView: View {
 
     // MARK: - 狀態切換（見 `docs/SPEC.md` §4.2e）
 
-    private func toggle(_ row: InventoryRow) {
-        switch row.status {
-        case .present, .foreign:
-            // 兩者都代表「人在這裡」，切成不在都要問移到哪。
-            nodeBeingMoved = row.node
-        case .missing:
+    /// 決定「按下去該做什麼」的是 `InventoryRow.toggleAction`，在邏輯層、有測試守著。
+    /// 這裡只負責把那個決定執行出來。
+    private func perform(_ action: ToggleAction, on node: Node) {
+        switch action {
+        case .askWhereItIs:
+            nodeBeingMoved = node
+        case .moveIntoThisContainer:
             // 目的地已經確定了 —— 使用者正站在這個容器的盤點頁上按「它在這」。
-            // 再彈一次 sheet 是要他重講一次剛剛已經說完的話。
-            move(row.node, to: container)
+            move(node, to: container)
+        case .unavailable:
+            // 記號在這個狀態下沒有觸控目標，走不到這裡。
+            break
         }
     }
 
@@ -80,7 +85,8 @@ struct ContainerInventoryView: View {
         do {
             try node.move(to: destination, in: context)
         } catch {
-            // 選單已經濾掉會成環的選項（§4.3b），走到這裡代表那層防護漏了，
+            // 兩條路徑都已經先擋掉會成環的移動 —— sheet 靠 §4.3b 濾選項，
+            // 「它在這」靠 §4.2e 讓記號不可點。走到這裡代表那兩層之一漏了，
             // 不是使用者做錯什麼。
             Self.log.error("""
                 「\(node.name, privacy: .public)」移不過去，資料沒有被改動：\
