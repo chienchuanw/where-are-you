@@ -124,13 +124,19 @@ SwiftUI 端**不得出現任何硬編碼的顏色、間距、圓角、字級**�
 宣稱「做完了」之前，必須實際跑過並貼出輸出：
 
 ```bash
-xcodegen && xcodebuild -scheme WhereAreYou -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodegen && xcodebuild -scheme WhereAreYou -destination 'platform=iOS Simulator,name=iPhone 16e,OS=26.1' test
 ```
+
+用 iPhone 16e 是因為它是 393×852，與 Figma 的 frame 尺寸一模一樣，截圖對照最省事。
 
 測試沒跑過就不要說通過。有測試失敗就直接說哪個失敗、貼輸出，不要含糊帶過。
 
-**兩個會被誤讀成程式碼壞掉的環境問題**：
+**三個會被誤讀成程式碼壞掉的環境問題**：
 
+- `xcodebuild: error: Unable to find a device matching the provided destination specifier`
+  是**這行指令裡的裝置名稱過期了**，不是程式碼問題。Xcode 升級會換掉整批模擬器。
+  先跑 `xcrun simctl list devices available` 看現在有什麼，再把 `-destination` 改掉，
+  順手把上面那行也更新，不要讓下一個人再撞一次
 - `Simulator device failed to launch ... Busy ("Application failed preflight checks")`
   是模擬器卡住，不是程式碼問題。`xcrun simctl shutdown all` 之後重跑即可
 - `Build input files cannot be found: .../Node.swift` 通常代表 `.xcodeproj` 是別的分支
