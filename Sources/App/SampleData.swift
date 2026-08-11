@@ -68,7 +68,13 @@ enum SampleData {
         // 書房
         for name in ["電池", "便利貼", "迴紋針", "印泥"] { _ = node(name, in: drawer) }
         let shelf = node("書櫃", in: study)
-        for name in ["護照", "印章", "保單", "相簿"] { _ = node(name, in: shelf) }
+        for name in ["印章", "保單", "相簿"] { _ = node(name, in: shelf) }
+
+        // 護照是 Figma `Item — Detail` 的那一支：有備註、有一段走過三個地方的歷史。
+        // 少了它，詳細頁沒有任何一筆資料可以拿來與 frame 對照。
+        let safe = node("保險箱", in: study)
+        let passport = node("護照", in: drawer)
+        passport.note = "效期 2031 / 04"
         let deskBox = node("桌上收納", in: study)
         for name in ["隨身碟", "讀卡機", "轉接頭"] { _ = node(name, in: deskBox) }
         let cameraBag = node("相機包", in: study)
@@ -78,6 +84,35 @@ enum SampleData {
         for name in ["行照", "雨傘", "面紙", "手機架", "充電座"] { _ = node(name, in: car) }
 
         seedHistory(context, raincoat: balcony, drawer: drawer, hikingBag: hikingBag)
+        seedDetailHistory(context, passport: passport, safe: safe, hikingBag: hikingBag,
+                          drawer: drawer, study: study)
+    }
+
+    /// 詳細頁（SPEC §4.4）要對照的兩支 frame 各需要一段歷史。
+    ///
+    /// **日期刻意用固定的、而且都比 `seedHistory` 那三筆舊。** 「最近用過的容器」只取最新的
+    /// 三個（§4.3a），這裡若用相對於今天的日期就會擠掉那一組，連帶讓「它在哪？」sheet
+    /// 與它的 frame 對不起來 —— 那是另一支畫面的驗收，不該被這一支的種子資料弄壞。
+    private static func seedDetailHistory(
+        _ context: ModelContext, passport: Node, safe: Node, hikingBag: Node,
+        drawer: Node, study: Node
+    ) {
+        func at(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
+            var c = DateComponents()
+            c.year = 2026; c.month = month; c.day = day; c.hour = hour; c.minute = minute
+            return Calendar.current.date(from: c) ?? Date()
+        }
+
+        // 護照走過的路：建檔在保險箱 → 帶去登山包 → 收進書房抽屜（它現在的位置）
+        context.insert(MoveEvent(node: passport, from: nil, to: safe,
+                                 at: at(3, 1, 11, 3)))
+        context.insert(MoveEvent(node: passport, from: safe, to: hikingBag,
+                                 at: at(5, 22, 9, 14), placemark: "大安區"))
+        context.insert(MoveEvent(node: passport, from: hikingBag, to: drawer,
+                                 at: at(6, 9, 20, 20), placemark: "信義區"))
+
+        // 書房抽屜自己也是一個 Node，也有它的檔案 —— 這是 `Item — Detail — Container` 那一支。
+        context.insert(MoveEvent(node: drawer, from: nil, to: study, at: at(1, 5, 9, 30)))
     }
 
     /// 「它在哪？」sheet 的第一組選項讀的是 `MoveEvent`（見 SPEC §4.4b）。上面那棵樹是

@@ -50,6 +50,10 @@ enum DebugLaunch {
     /// 啟動就從某個容器推進新增物件那一頁。要與 `-open-container` 一起用。
     static var wantsAddItem: Bool { flag("-add-item") }
 
+    /// 啟動就推進某個東西的詳細頁。要與 `-open-container` 一起用 ——
+    /// 詳細頁是從盤點頁的列推進去的（`docs/SPEC.md` §4.4c）。
+    static var itemToOpen: String? { value(for: "-open-item") }
+
     private static func flag(_ name: String) -> Bool {
         ProcessInfo.processInfo.arguments.contains(name)
     }
