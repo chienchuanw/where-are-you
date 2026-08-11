@@ -13,6 +13,9 @@ struct HomeView: View {
 
     @State private var query = ""
 
+    /// 見 `loadMostRecentContainer()`：每敲一個字重掃一次移動歷史太貴。
+    @State private var mostRecentContainer: Node?
+
     var body: some View {
         VStack(spacing: 0) {
             LargeTitleBar(title: "我的東西")
@@ -30,6 +33,7 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.bgGrouped)
         .toolbar(.hidden, for: .navigationBar)
+        .task { mostRecentContainer = loadMostRecentContainer() }
         #if DEBUG
         // 見 `DebugLaunch`：讓「搜尋無結果」這個狀態的截圖步驟可重現。
         .task { if let seeded = DebugLaunch.initialSearch { query = seeded } }
@@ -91,9 +95,14 @@ struct HomeView: View {
 
     private var isSearching: Bool { !trimmedQuery.isEmpty }
 
-    /// 搜尋落空時要猜的位置。讀不到歷史就不猜 —— 位置留空使用者自己選得到，
-    /// 但把「讀壞了」偽裝成「沒有歷史」會讓之後看不出差別。
-    private var mostRecentContainer: Node? {
+    /// 搜尋落空時要猜的位置。
+    ///
+    /// 算一次就好 —— 它讀的是整份移動歷史，掛在計算屬性上會變成每敲一個字就重掃一遍
+    /// （`WhereIsItSheet` 那邊已經踩過同一個坑）。
+    ///
+    /// 讀不到歷史就不猜：位置留空使用者自己選得到，但把「讀壞了」偽裝成「沒有歷史」
+    /// 會讓之後看不出差別。
+    private func loadMostRecentContainer() -> Node? {
         do {
             return try Library.recentContainers(excluding: nil, limit: 1, in: context).first
         } catch {
@@ -107,15 +116,17 @@ struct HomeView: View {
         let results = Library.search(query, among: nodes)
         if results.isEmpty {
             OpticallyCentred {
+                // 顯示與實際建出來的名稱都用修掉空白之後的那一個，
+                // 否則按鈕上寫著「建立「腳架 」」而建出來的是「腳架」。
                 EmptyStateView(
                     glyph: SearchGlyph(side: Size.iconLg),
-                    title: "找不到「\(query)」",
+                    title: "找不到「\(trimmedQuery)」",
                     message: "這個東西可能還沒建檔。要現在建一筆嗎？"
                 ) {
                     // 沒有 GPS 時，「你剛剛才放東西進去的那個容器」是手上最好的猜測。
                     // 見 `docs/SPEC.md` §4.5b。
                     EmptyStateAction(
-                        label: "建立「\(query)」",
+                        label: "建立「\(trimmedQuery)」",
                         route: .addItem(.named(trimmedQuery, suggested: mostRecentContainer))
                     )
                 }

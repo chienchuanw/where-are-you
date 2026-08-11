@@ -8,11 +8,15 @@ struct MoveDestination: Identifiable {
     /// 右側是否標「最近用過」。搜尋狀態下一律是 `false`。
     let isRecent: Bool
 
+    /// 「不放在任何容器裡」在畫面上的說法。三個地方要講同一句話：sheet 的選項、
+    /// 新增表單的位置列、新增表單的歸屬地列。散成三份就會有一天只改到其中一份。
+    static let topLevelName = "不放在任何容器裡"
+
     // 頂層那一列沒有節點可以借 id。整個 app 只會有一列是它，所以一個固定值就夠。
     private static let topLevelID = UUID()
 
     var id: UUID { node?.id ?? Self.topLevelID }
-    var name: String { node?.name ?? "不放在任何容器裡" }
+    var name: String { node?.name ?? Self.topLevelName }
 }
 
 /// sheet 的選項組成。語意在 `docs/SPEC.md` §4.3a–§4.3c。

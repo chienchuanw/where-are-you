@@ -83,6 +83,22 @@ struct NewItemTests {
         #expect(draft.homeLabel == "書房抽屜")
     }
 
+    @Test("打開選擇器又挑了同一個值，不算選過")
+    func rePickingTheSameHomeDoesNotDecoupleIt() throws {
+        let w = try makeWorld()
+        var draft = NewItemDraft(location: w.hikingBag)
+
+        // 使用者只是打開來看「同位置」是什麼意思，挑了畫面上已經生效的那一個。
+        draft.setHome(w.hikingBag)
+        #expect(draft.homeLabel == "同位置")
+
+        // 脫鉤是看不見的狀態。若在這裡就脫鉤，接著改位置會建出一筆立刻被算成缺件的資料，
+        // 而使用者從頭到尾沒說過任何東西放錯地方。
+        draft.setLocation(w.drawer)
+        #expect(draft.home === w.drawer)
+        #expect(draft.homeLabel == "同位置")
+    }
+
     @Test("把歸屬地選成「不放在任何容器裡」也算使用者選過")
     func choosingNoHomeCountsAsExplicit() throws {
         let w = try makeWorld()
@@ -212,6 +228,23 @@ struct NewItemTests {
         #expect(draft.location === w.hikingBag)
         #expect(draft.home === w.drawer)
         #expect(draft.homeLabel == "書房抽屜")
+    }
+
+    @Test("存檔失敗就把剛插入的節點與歷史一起收回")
+    func aFailedSaveIsRolledBack() throws {
+        let w = try makeWorld()
+        var draft = NewItemDraft(.into(w.hikingBag))
+        draft.name = "頭燈"
+
+        // 直接驗收回的那一半：模擬不出 save 失敗，但收回本身要能單獨叫得動，
+        // 而且叫完之後記憶體要回到什麼都沒發生的狀態。
+        let created = try #require(draft.create(in: w.context))
+        NewItemDraft.rollBack(created, in: w.context)
+
+        let nodes = try w.context.fetch(FetchDescriptor<Node>())
+        #expect(!nodes.map(\.name).contains("頭燈"))
+        #expect(try w.context.fetchCount(FetchDescriptor<MoveEvent>()) == 0)
+        #expect(w.hikingBag.childNodes.isEmpty)
     }
 
     // MARK: - 選擇器（§4.5d）

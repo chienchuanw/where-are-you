@@ -111,7 +111,9 @@ struct TextFieldRow: View {
             }
             .typography(.body)
             .foregroundStyle(Color.textPrimary)
-            .textInputAutocapitalization(.never)
+            // 這裡與搜尋列不同，不關大寫自動轉換：填進去的是這個東西的識別主鍵（§2.1），
+            // 打 `airpods pro` 之後每一個畫面與每一筆歷史快照都會照樣顯示。
+            // 自動修正仍然關掉 —— 型號與商品名最常被它改壞。
             .autocorrectionDisabled()
         }
         .padding(.vertical, Spacing.lg)
@@ -336,14 +338,6 @@ struct TintedButtonLabel: View {
     }
 }
 
-struct TintedButton: View {
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) { TintedButtonLabel(label: label) }
-    }
-}
 
 /// Figma `Button/Style=Filled`：主要動作，撐滿寬度。
 ///

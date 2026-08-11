@@ -16,6 +16,10 @@ struct AddItemView: View {
     /// 正在選哪一個欄位。`nil` 代表沒有在選。
     @State private var picking: Field?
 
+    /// 已經按下去、正在建的那一次。`dismiss()` 不是同步移除畫面，少了這道閘，
+    /// 連按兩下會建出兩筆一模一樣的資料。
+    @State private var isCreating = false
+
     private enum Field: Identifiable {
         case location, home
         var id: Self { self }
@@ -33,31 +37,32 @@ struct AddItemView: View {
         VStack(spacing: 0) {
             InlineTitleBar(title: "新增物件") { dismiss() }
 
-            VStack(spacing: 0) {
-                TextFieldRow(label: "名稱", placeholder: "例如：頭燈", text: $draft.name)
+            // 名稱欄一定會叫出鍵盤，而這一頁的送出鍵在最下面。機身矮一點的裝置上，
+            // 沒有 ScrollView 就等於這個流程走不完。
+            ScrollView {
+                VStack(spacing: 0) {
+                    TextFieldRow(label: "名稱", placeholder: "例如：頭燈", text: $draft.name)
 
-                PickerFieldRow(
-                    label: "位置",
-                    value: draft.location?.name ?? "不放在任何容器裡",
-                    action: { picking = .location }
-                )
+                    PickerFieldRow(label: "位置", value: draft.locationLabel) { picking = .location }
+                    PickerFieldRow(label: "歸屬地", value: draft.homeLabel) { picking = .home }
 
-                PickerFieldRow(label: "歸屬地", value: draft.homeLabel) { picking = .home }
+                    FilledButton(label: "完成建檔", isEnabled: isSubmittable) {
+                        if create() { dismiss() }
+                    }
+                    // 按鈕緊接在最後一欄下面，不往畫面底部推 —— 這一頁是一連串由上往下
+                    // 填完就送出的動作，把送出鍵丟到遠處會讓它與最後一欄斷開。
+                    .padding(.top, Spacing.xxl)
 
-                FilledButton(label: "完成建檔", isEnabled: draft.canSubmit) {
-                    if create() { dismiss() }
+                    PlainTextButton(label: "再新增一件", isEnabled: isSubmittable) {
+                        // 建完留在這一頁，只清掉名稱 —— 位置與歸屬地從頭到尾是同一個答案。
+                        if create() {
+                            draft.startAnother()
+                            isCreating = false
+                        }
+                    }
                 }
-                // 按鈕緊接在最後一欄下面，不往畫面底部推 —— 這一頁是一連串由上往下
-                // 填完就送出的動作，把送出鍵丟到遠處會讓它與最後一欄斷開。
-                .padding(.top, Spacing.xxl)
-
-                PlainTextButton(label: "再新增一件", isEnabled: draft.canSubmit) {
-                    // 建完留在這一頁，只清掉名稱 —— 位置與歸屬地從頭到尾是同一個答案。
-                    if create() { draft.startAnother() }
-                }
-
-                Spacer(minLength: 0)
             }
+            .scrollDismissesKeyboard(.interactively)
             .padding(.horizontal, Spacing.xxl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -77,19 +82,32 @@ struct AddItemView: View {
 
     // MARK: -
 
-    /// 回傳是否真的建出來了。
+    private var isSubmittable: Bool { draft.canSubmit && !isCreating }
+
+    /// 回傳是否真的建出來、而且存進去了。
     private func create() -> Bool {
-        guard let created = draft.create(in: context) else { return false }
+        guard !isCreating else { return false }
+        isCreating = true
+
+        guard let created = draft.create(in: context) else {
+            isCreating = false
+            return false
+        }
 
         do {
             try context.save()
         } catch {
-            // 與 §4.2e 的移動同一個已知缺口：存檔失敗目前沒有畫面可以講。
-            // 節點已經在記憶體裡了，硬把它抽掉會變成第三種與真實狀態都不符的說法。
+            // 存檔失敗就當作沒建過：把節點與那筆歷史一起收回，留在這一頁。
+            // 不收回的話這一頁會表演出一次成功 —— 畫面退回去、或名稱欄清空讓你接著建
+            // 下一件 —— 使用者於是連續建了八件，八件全部沒有落地。見 `docs/SPEC.md` §4.5c。
+            NewItemDraft.rollBack(created, in: context)
+            isCreating = false
+
             Self.log.error("""
-                「\(created.name, privacy: .public)」已經建立，但存不進資料庫，重開 app 後會不見：\
+                「\(created.name, privacy: .public)」存不進資料庫，已經收回，什麼都沒有建立：\
                 \(error.localizedDescription, privacy: .public)
                 """)
+            return false
         }
         return true
     }
