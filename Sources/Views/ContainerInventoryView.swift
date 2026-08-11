@@ -50,7 +50,7 @@ struct ContainerInventoryView: View {
         .background(Color.bgGrouped)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(item: $nodeBeingMoved) { node in
-            WhereIsItSheet(node: node) { destination in
+            WhereIsItSheet(title: "\(node.name)移到哪？", node: node) { destination in
                 move(node, to: destination)
                 nodeBeingMoved = nil
             }
@@ -129,15 +129,12 @@ struct ContainerInventoryView: View {
             EmptyStateView(
                 glyph: PlusGlyph(side: Size.iconLg),
                 title: "這個包還是空的",
-                message: "加入你出門一定要帶的東西，之後就能一眼確認有沒有漏。",
-                actionLabel: "加入第一件",
-                action: addFirstItem
-            )
+                message: "加入你出門一定要帶的東西，之後就能一眼確認有沒有漏。"
+            ) {
+                EmptyStateAction(label: "加入第一件", route: .addItem(.into(container)))
+            }
         }
     }
-
-    // TODO: 新增流程（Figma `Item — Add`）是下一支分支的範圍，按鈕還沒有去處。
-    private func addFirstItem() {}
 
     private static let log = Logger(subsystem: "com.chienchuanw.whereareyou", category: "inventory")
 }

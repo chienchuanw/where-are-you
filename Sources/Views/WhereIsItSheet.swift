@@ -7,9 +7,16 @@ import OSLog
 ///
 /// 這支只負責選，不負責移動 —— 選完把目的地交回呼叫端，由它寫入並收掉 sheet。
 /// 收掉而沒有選則什麼都不發生：「我想改但還沒決定改成什麼」不是一次移動。
+/// 新增流程的位置與歸屬地也用這一支，只換標題（§4.5d）。要回答的是同一個問題
+/// ——從所有節點裡挑一個地方——選項的組成、排序、搜尋與「最近用過」全部一樣，
+/// 另做一支等於把同一套規則寫兩遍，然後讓它們各自漂移。
 struct WhereIsItSheet: View {
-    /// 要被移動的那個節點。標題與所有排除規則都是相對它算的。
-    let node: Node
+    let title: String
+
+    /// 要被移動的那個節點，所有排除規則都是相對它算的。
+    /// `nil` 代表那個東西還不存在（新增流程），這時一條都不排除。
+    let node: Node?
+
     /// `nil` 代表「不放在任何容器裡」。
     let onPick: (Node?) -> Void
 
@@ -24,7 +31,7 @@ struct WhereIsItSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("\(node.name)移到哪？")
+            Text(title)
                 .typography(.title3)
                 .foregroundStyle(Color.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -92,7 +99,7 @@ struct WhereIsItSheet: View {
     /// 剛好相同（§4.2e），但依據是 `parent`。見 `docs/SPEC.md` §4.4b。
     private func loadRecentContainers() -> [Node] {
         do {
-            return try Library.recentContainers(excluding: node.parent, in: context)
+            return try Library.recentContainers(excluding: node?.parent, in: context)
         } catch {
             // 讀不到歷史不該讓整支 sheet 開不起來 —— 少掉的只是捷徑那一組，
             // 下面的完整清單仍然選得到每一個容器。但一定要講出來：「還沒有任何移動歷史」

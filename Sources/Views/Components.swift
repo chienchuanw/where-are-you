@@ -39,7 +39,115 @@ struct LargeTitleBar: View {
     }
 }
 
+/// 置中標題列。對照 Figma `NavBar/Style=Inline`。
+///
+/// 一次性的任務用這個而不是大標題：標題只需要說明「你正在做什麼」，
+/// 不像盤點頁的容器名稱是那一頁最重要的一行字（§4.0）。
+struct InlineTitleBar: View {
+    let title: String
+    let onBack: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.xs) {
+            Button(action: onBack) {
+                ChevronLeftGlyph(side: Size.iconSm, tint: .accent)
+                    .frame(width: Size.touchMin, height: Size.touchMin)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .frame(width: Size.iconSm, height: Size.iconSm)
+            .accessibilityLabel("返回")
+
+            Text(title)
+                .typography(.headline)
+                .foregroundStyle(Color.textPrimary)
+                .frame(maxWidth: .infinity)
+
+            // 右側留一個等寬的空位，標題才會真的置中。Figma 的 `trailing` 就是這個。
+            Color.clear.frame(width: Size.iconSm, height: Size.iconSm)
+        }
+        .padding(.horizontal, Spacing.xxl)
+        .padding(.bottom, Spacing.md)
+    }
+}
+
 // MARK: - Fields
+
+/// 表單列的底線。
+///
+/// 線寬不是設計 token —— 與 `Glyphs.swift` 的字符線寬同一類，屬於美術資產。
+/// `docs/SPEC.md` §9 也已經講明它是刻意不合規的裝飾性邊界，不承載狀態辨識。
+private struct FieldSeparator: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.borderSeparator)
+            .frame(height: 1)
+    }
+}
+
+private struct FieldLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .typography(.caption)
+            .foregroundStyle(Color.textTertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// 表單列（Figma `FieldRow/Type=Text`）：標籤在上、可編輯的值在下。
+struct TextFieldRow: View {
+    let label: String
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            FieldLabel(text: label)
+
+            TextField(text: $text) {
+                Text(placeholder).foregroundStyle(Color.textTertiary)
+            }
+            .typography(.body)
+            .foregroundStyle(Color.textPrimary)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+        }
+        .padding(.vertical, Spacing.lg)
+        .overlay(alignment: .bottom) { FieldSeparator() }
+    }
+}
+
+/// 表單列（Figma `FieldRow/Type=Picker`）：右側帶「更改」提示，無 chevron。
+struct PickerFieldRow: View {
+    let label: String
+    let value: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                FieldLabel(text: label)
+
+                HStack(spacing: Spacing.sm) {
+                    Text(value)
+                        .typography(.body)
+                        .foregroundStyle(Color.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text("更改")
+                        .typography(.subhead)
+                        .foregroundStyle(Color.textTertiary)
+                }
+            }
+            .padding(.vertical, Spacing.lg)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .bottom) { FieldSeparator() }
+    }
+}
 
 struct SearchField: View {
     @Binding var text: String
@@ -136,7 +244,7 @@ struct ItemRow: View {
             toggle
 
             if isNavigable {
-                NavigationLink(value: row.node) { label }
+                NavigationLink(value: Route.container(row.node)) { label }
                     .buttonStyle(.plain)
             } else {
                 label
@@ -210,22 +318,74 @@ struct DestinationRow: View {
 
 // MARK: - Badge & Button
 
+/// Figma `Button/Style=Tinted` 的外觀。拆成獨立的一支，是因為空狀態的動作是導覽，
+/// 掛在 `NavigationLink` 上，那裡要的是一個 label 而不是一顆 `Button`。
+struct TintedButtonLabel: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .typography(.headline)
+            .foregroundStyle(Color.textAccent)
+            .padding(.horizontal, Spacing.xl)
+            .frame(height: Size.button)
+            .background(
+                Color.bgAccentSubtle,
+                in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+            )
+    }
+}
+
 struct TintedButton: View {
     let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) { TintedButtonLabel(label: label) }
+    }
+}
+
+/// Figma `Button/Style=Filled`：主要動作，撐滿寬度。
+///
+/// `State=Disabled` 的底走 `bg/field`、字走 `text/tertiary`。不可按是新增物件那一頁的
+/// 初始狀態而不是例外狀態（§4.5a），所以它有正式的樣式，不是把畫面調淡了事。
+struct FilledButton: View {
+    let label: String
+    let isEnabled: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(label)
                 .typography(.headline)
-                .foregroundStyle(Color.textAccent)
-                .padding(.horizontal, Spacing.xl)
+                .foregroundStyle(isEnabled ? Color.textOnAccent : Color.textTertiary)
+                .frame(maxWidth: .infinity)
                 .frame(height: Size.button)
                 .background(
-                    Color.bgAccentSubtle,
+                    isEnabled ? Color.accent : Color.bgField,
                     in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
                 )
         }
+        .disabled(!isEnabled)
+    }
+}
+
+/// Figma `Button/Style=Plain`：文字動作，沒有底。
+struct PlainTextButton: View {
+    let label: String
+    let isEnabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .typography(.headline)
+                .foregroundStyle(isEnabled ? Color.textAccent : Color.textTertiary)
+                .frame(maxWidth: .infinity)
+                .frame(height: Size.button)
+                .contentShape(Rectangle())
+        }
+        .disabled(!isEnabled)
     }
 }
 
@@ -249,12 +409,13 @@ struct OpticallyCentred<Content: View>: View {
     }
 }
 
-struct EmptyStateView<Glyph: View>: View {
+/// 空狀態。動作那一格是插槽 —— 三個空狀態的動作全部是「去新增物件那一頁」，
+/// 而導覽在 SwiftUI 裡是 `NavigationLink`，不是一顆按下去執行閉包的 `Button`。
+struct EmptyStateView<Glyph: View, Action: View>: View {
     let glyph: Glyph
     let title: String
     let message: String
-    let actionLabel: String
-    let action: () -> Void
+    @ViewBuilder let action: Action
 
     var body: some View {
         VStack(spacing: Spacing.md) {
@@ -274,10 +435,21 @@ struct EmptyStateView<Glyph: View>: View {
                 .foregroundStyle(Color.textSecondary)
                 .multilineTextAlignment(.center)
 
-            TintedButton(label: actionLabel, action: action)
+            action
                 .padding(.top, Spacing.sm)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, Spacing.xxxl)
+    }
+}
+
+/// 空狀態的動作：長得像 Tinted 按鈕的導覽連結。
+struct EmptyStateAction: View {
+    let label: String
+    let route: Route
+
+    var body: some View {
+        NavigationLink(value: route) { TintedButtonLabel(label: label) }
+            .buttonStyle(.plain)
     }
 }
