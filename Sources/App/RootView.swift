@@ -49,16 +49,26 @@ private struct OpenContainerOnLaunch: ViewModifier {
 
     func body(content: Content) -> some View {
         content.task {
-            guard let name = DebugLaunch.containerToOpen else { return }
-            let match = try? context.fetch(FetchDescriptor<Node>()).first { $0.name == name }
-            guard let match else { return }
+            let all = (try? context.fetch(FetchDescriptor<Node>())) ?? []
+
+            guard let name = DebugLaunch.containerToOpen else {
+                // 單獨用 `-open-item`：頂層節點不在任何容器的列裡（`inventoryRows` 是
+                // 直接子節點 ∪ 缺件），沒有這條路的話，登山包這種根節點的詳細頁就到不了 ——
+                // 而 `Item — Detail — Container` 那支 frame 用的正是它。
+                if let itemName = DebugLaunch.itemToOpen,
+                   let item = all.first(where: { $0.name == itemName }) {
+                    path = [.item(item)]
+                }
+                return
+            }
+            guard let match = all.first(where: { $0.name == name }) else { return }
 
             path = [.container(match)]
             if DebugLaunch.wantsAddItem { path.append(.addItem(.into(match))) }
 
-            // 名稱刻意不唯一（CloudKit 相容規則不用 `@Attribute(.unique)`），所以要在
-            // 剛推進的那個容器的列裡面找，不能全庫撈第一個 —— 否則截圖步驟會安靜地
-            // 拍到另一個同名節點的歷史。與 `-move` 的作法一致。
+            // 名稱刻意不唯一（CloudKit 相容規則不用 `@Attribute(.unique)`），所以有
+            // `-open-container` 時要在那個容器的列裡面找，不能全庫撈第一個 ——
+            // 否則截圖步驟會安靜地拍到另一個同名節點的歷史。與 `-move` 的作法一致。
             if let itemName = DebugLaunch.itemToOpen,
                let item = match.inventoryRows.first(where: { $0.node.name == itemName })?.node {
                 path.append(.item(item))

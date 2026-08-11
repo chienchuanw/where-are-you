@@ -26,6 +26,8 @@ import Foundation
 /// "${L[@]}" -open-container 登山包 -move 頭燈
 /// "${L[@]}" -open-container 登山包 -move 頭燈 -sheet-search 腳架
 /// "${L[@]}" -open-container 登山包 -add-item
+/// "${L[@]}" -open-container 書房抽屜 -open-item 護照
+/// "${L[@]}" -open-item 登山包
 /// ```
 enum DebugLaunch {
     /// 不寫入種子資料，用來看 `Home — Empty`。
@@ -50,8 +52,10 @@ enum DebugLaunch {
     /// 啟動就從某個容器推進新增物件那一頁。要與 `-open-container` 一起用。
     static var wantsAddItem: Bool { flag("-add-item") }
 
-    /// 啟動就推進某個東西的詳細頁。要與 `-open-container` 一起用 ——
-    /// 詳細頁是從盤點頁的列推進去的（`docs/SPEC.md` §4.4c）。
+    /// 啟動就推進某個東西的詳細頁。
+    ///
+    /// 與 `-open-container` 一起用時，會**限定在那個容器的列裡面找**（名稱刻意不唯一）。
+    /// 單獨用時全庫找 —— 頂層節點（例如登山包）不在任何容器的列裡，沒有這條路就到不了。
     static var itemToOpen: String? { value(for: "-open-item") }
 
     private static func flag(_ name: String) -> Bool {

@@ -213,7 +213,7 @@ struct ItemDetailTests {
 
     // MARK: - 進盤點頁那一列（§4.4c）
 
-    @Test("有子節點才有「裡面有 N 件」，N 是遞迴件數")
+    @Test("「裡面有 N 件」的 N 是遞迴件數，孫節點也要算")
     func inventoryLink() throws {
         let context = try makeContext()
         let bag = Node(name: "登山包")
@@ -225,7 +225,7 @@ struct ItemDetailTests {
         // 筆袋 + 鉛筆 = 2，孫節點也要算進去（§3.1）
         #expect(bag.inventoryLinkText == "裡面有 2 件")
         #expect(pouch.inventoryLinkText == "裡面有 1 件")
-        #expect(passport.inventoryLinkText == nil)
+        #expect(passport.inventoryLinkText == "裡面有 0 件")
     }
 
     /// 出現的條件是「盤點頁列得出東西」，不是「有子節點」。用後者當條件的話，
@@ -248,14 +248,16 @@ struct ItemDetailTests {
         #expect(cameraBag.inventoryLinkText == "裡面有 0 件")
     }
 
-    @Test("真的什麼都沒有的容器才沒有那一列")
-    func noInventoryLinkWhenNothingToShow() throws {
+    /// 剛建好的空容器兩邊都是空的。**那一列仍然要在** —— 它的盤點頁正是把第一件東西
+    /// 放進去的入口（§4.2d 的「加入第一件」），設任何條件都會讓那一頁到不了。
+    @Test("剛建好、什麼都沒有的容器也有那一列")
+    func inventoryLinkForBrandNewEmptyContainer() throws {
         let context = try makeContext()
-        let empty = Node(name: "保險箱")
-        context.insert(empty)
+        let pouch = Node(name: "筆袋")
+        context.insert(pouch)
 
-        #expect(empty.inventoryRows.isEmpty)
-        #expect(empty.inventoryLinkText == nil)
+        #expect(pouch.inventoryRows.isEmpty)
+        #expect(pouch.inventoryLinkText == "裡面有 0 件")
     }
 }
 
