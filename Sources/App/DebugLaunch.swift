@@ -7,11 +7,14 @@ import Foundation
 /// 少了這些參數，空狀態與搜尋無結果就得靠人手點到那個狀態，截圖步驟也就不可重現。
 /// Release 版整支不編譯。
 ///
+/// 裝置一律指名，**不要用 `booted`** —— 兩台基準機（`CLAUDE.md` 的「完成的定義」）同時開著時，
+/// `booted` 會自己挑一台，挑到 SE 就是拿 375×667 的截圖去對 393×852 的 frame。
+///
 /// ```
-/// xcrun simctl launch booted com.chienchuanw.whereareyou -open-container 登山包
-/// xcrun simctl launch booted com.chienchuanw.whereareyou -search 腳架
-/// xcrun simctl launch booted com.chienchuanw.whereareyou -empty-store
-/// xcrun simctl launch booted com.chienchuanw.whereareyou -open-container 登山包 -move 頭燈
+/// xcrun simctl launch "iPhone 16" com.chienchuanw.whereareyou -open-container 登山包
+/// xcrun simctl launch "iPhone 16" com.chienchuanw.whereareyou -search 腳架
+/// xcrun simctl launch "iPhone 16" com.chienchuanw.whereareyou -empty-store
+/// xcrun simctl launch "iPhone 16" com.chienchuanw.whereareyou -open-container 登山包 -move 頭燈
 /// ```
 enum DebugLaunch {
     /// 不寫入種子資料，用來看 `Home — Empty`。
