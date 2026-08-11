@@ -28,7 +28,10 @@ enum MoveDestinations {
     static let recentLimit = 3
 
     /// 沒有在搜尋時的完整清單：最近用過 → 其餘依名稱 → 不放在任何容器裡。
-    static func options(for node: Node, among all: [Node], recent: [Node]) -> [MoveDestination] {
+    ///
+    /// `node` 傳 `nil` 代表那個東西還不存在（新增流程的位置與歸屬地選擇器，§4.5d）——
+    /// 沒有自己與子孫要排除，也沒有目前的 parent，所以一條都不排除。
+    static func options(for node: Node?, among all: [Node], recent: [Node]) -> [MoveDestination] {
         let blocked = blockedIDs(for: node)
         func isAllowed(_ candidate: Node) -> Bool {
             !blocked.contains(ObjectIdentifier(candidate))
@@ -47,7 +50,9 @@ enum MoveDestinations {
         options += rest.map { MoveDestination(node: $0, isRecent: false) }
 
         // 本來就在頂層的東西不需要這一列 —— 與排除目前 parent 同一條理由。
-        if node.parent != nil {
+        // 還不存在的東西則一定要有：首頁那個入口的預設值就是頂層。
+        let allowsTopLevel = node.map { $0.parent != nil } ?? true
+        if allowsTopLevel {
             options.append(MoveDestination(node: nil, isRecent: false))
         }
         return options
@@ -56,7 +61,7 @@ enum MoveDestinations {
     /// 搜尋狀態下的清單：三段全部收起來，只留符合的候選。
     ///
     /// 比對規則沿用首頁的搜尋（`Library.search`），這樣兩個地方只需要學一次。
-    static func search(_ query: String, for node: Node, among all: [Node]) -> [MoveDestination] {
+    static func search(_ query: String, for node: Node?, among all: [Node]) -> [MoveDestination] {
         let blocked = blockedIDs(for: node)
         return Library.search(query, among: all)
             .filter { !blocked.contains(ObjectIdentifier($0)) }
@@ -66,7 +71,8 @@ enum MoveDestinations {
     /// 自己、自己的所有子孫、以及目前的 parent。見 `docs/SPEC.md` §4.3b。
     ///
     /// 防在選單這一層而不是等 `move(to:)` 拋錯：一個選了一定會失敗的選項不該出現在選單上。
-    private static func blockedIDs(for node: Node) -> Set<ObjectIdentifier> {
+    private static func blockedIDs(for node: Node?) -> Set<ObjectIdentifier> {
+        guard let node else { return [] }
         var ids = Set(node.subtree.map(ObjectIdentifier.init))
         if let parent = node.parent { ids.insert(ObjectIdentifier(parent)) }
         return ids
