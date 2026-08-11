@@ -7,22 +7,25 @@ import Foundation
 /// 少了這些參數，空狀態與搜尋無結果就得靠人手點到那個狀態，截圖步驟也就不可重現。
 /// Release 版整支不編譯。
 ///
-/// 裝置一律指名，**不要用 `booted`** —— 兩台基準機（`CLAUDE.md` 的「完成的定義」）同時開著時，
+/// 裝置**指名，不要用 `booted`** —— 兩台基準機（`CLAUDE.md` 的「完成的定義」）同時開著時，
 /// `booted` 會自己挑一台，挑到 SE 就是拿 375×667 的截圖去對 393×852 的 frame。
-/// 指名的代價是它不像 `booted` 保證那台在跑，所以要自己先開機。
+/// 代價是指名不像 `booted` 保證那台在跑，所以先確認它開著。
 ///
 /// `--terminate-running-process` 不可省：app 已經在跑的話，`launch` 只會把它叫到前景，
 /// 下面這些參數整組被忽略，截到的是上一次留下的畫面。
 ///
-/// 這裡的裝置名稱與 `CLAUDE.md`「完成的定義」是同一個，換基準機時兩邊要一起改。
+/// `D` 換成 `"iPhone SE (3rd generation)"` 就是 `CLAUDE.md` 那道矮機身關卡要用的。
+/// 名稱在這裡與 `CLAUDE.md` 各寫一份，換基準機時兩邊要一起改。
 ///
 /// ```
-/// xcrun simctl boot "iPhone 16" 2>/dev/null; xcrun simctl bootstatus "iPhone 16" -b
+/// D="iPhone 16"; L=(xcrun simctl launch --terminate-running-process "$D" com.chienchuanw.whereareyou)
 ///
-/// xcrun simctl launch --terminate-running-process "iPhone 16" com.chienchuanw.whereareyou -open-container 登山包
-/// xcrun simctl launch --terminate-running-process "iPhone 16" com.chienchuanw.whereareyou -search 腳架
-/// xcrun simctl launch --terminate-running-process "iPhone 16" com.chienchuanw.whereareyou -empty-store
-/// xcrun simctl launch --terminate-running-process "iPhone 16" com.chienchuanw.whereareyou -open-container 登山包 -move 頭燈
+/// "${L[@]}" -empty-store
+/// "${L[@]}" -search 腳架
+/// "${L[@]}" -open-container 登山包
+/// "${L[@]}" -open-container 登山包 -move 頭燈
+/// "${L[@]}" -open-container 登山包 -move 頭燈 -sheet-search 腳架
+/// "${L[@]}" -open-container 登山包 -add-item
 /// ```
 enum DebugLaunch {
     /// 不寫入種子資料，用來看 `Home — Empty`。
