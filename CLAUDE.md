@@ -140,20 +140,7 @@ xcodegen && xcodebuild -scheme WhereAreYou -destination 'platform=iOS Simulator,
 `simctl` 不擋同名裝置，建重複了 `-destination` 的 `name=` 就會指向兩台，
 `xcodebuild` 要不是拒絕，就是安靜地跑在那台剛建好、從沒開機的替身上。
 
-**檢查一定要限定 runtime。** `simctl list devices` 是按 runtime 分段印的，
-不分段去比對，一台只存在於 26.5 的同名裝置會被當成「已經有了」，
-然後 `-destination ...,OS=26.1` 照樣找不到它，而故障排除又會把你送回同一個檢查：
-
-```bash
-RT="com.apple.CoreSimulator.SimRuntime.iOS-26-1"
-for D in "iPhone 16" "iPhone SE (3rd generation)"; do
-  xcrun simctl list devices available -j \
-    | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'].get('$RT',[]);\
-print('OK' if any(x['name']=='''$D''' for x in d) else '缺 $D，要建')"
-done
-```
-
-真的缺了才建：
+缺了就建：
 
 ```bash
 xcrun simctl create "iPhone 16" \
@@ -162,22 +149,24 @@ xcrun simctl create "iPhone SE (3rd generation)" \
   com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation com.apple.CoreSimulator.SimRuntime.iOS-26-1
 ```
 
+**建之前先確認同名的不存在，而且要看 runtime。** `xcrun simctl list devices available`
+是**按 runtime 分段印**的：一台只存在於 26.5 的同名裝置，粗看會以為「已經有了」，
+但 `-destination ...,OS=26.1` 照樣找不到它。同名重複也一樣傷 —— `simctl` 不擋，
+而 `-destination` 的 `name=` 與 `simctl` 的指名都**不會優先選開著的那一台**。
+
+這件事在這台機器上實際發生過：在 26.5 上多建一台 `iPhone 16` 之後，
+`simctl boot "iPhone 16"` 開的是 26.5 那台、`bootstatus` 回報成功、截圖也是漂亮的
+1179×2556 —— 但 app 從來沒裝在那台上，而測試跑的是另一台。**兩邊都沒有任何警告。**
+
 **截圖與啟動一律指名裝置，不要用 `booted`。** 同時開著兩台基準機時 `booted` 會自己挑一台，
-挑到 SE 就是拿 375×667 的截圖去對 393×852 的 frame —— 對照的結論整組作廢，而且不會有人發現。
+挑到 SE 就是拿 375×667 的截圖去對 393×852 的 frame —— 結論整組作廢，而且不會有人發現。
+但指名換掉了 `booted` 唯一的保證（「打到的那台是開著的」），所以指名之後要自己確認
+那台真的開著、而且真的是你以為的那一台。名稱打到 Shutdown 的那台時，
+`launch` 吐 `Unable to lookup in current state: Shutdown`、
+`io ... screenshot` 是卡住之後吐 `Timeout waiting for screen surfaces`。
 
-**但指名裝置換掉了一個保證，要自己補回來。** `booted` 至少保證「打到的那台是開著的」，
-指名不保證 —— 名稱對到一台 Shutdown 的（例如上面那種跨 runtime 的重複），
-`launch` 會吐 `Unable to lookup in current state: Shutdown`，
-`io ... screenshot` 則是卡住之後吐 `Timeout waiting for screen surfaces`。
-所以指名之前先開機，而且要等它真的開完：
-
-```bash
-xcrun simctl boot "iPhone 16" 2>/dev/null   # 已經開著會報錯，忽略即可
-xcrun simctl bootstatus "iPhone 16" -b
-```
-
-`DebugLaunch.swift` 註解裡的示例指令已經改成指名 `"iPhone 16"` 並帶上這兩行。
-**那支檔案裡也寫死了裝置名稱** —— 之後基準機換型號時，它跟這一節要一起改。
+`Sources/App/DebugLaunch.swift` 的示例指令也指名裝置，**那支檔案裡同樣寫死了名稱** ——
+之後基準機換型號時，它跟這一節要一起改。
 
 **為什麼是 iPhone 16：** 它與 Figma frame 同為 393×852，截圖可以直接疊上去比，
 不必先在腦裡扣掉一個差值。差值只要存在，就會變成「這 3pt 應該是機身差吧」的藉口，
@@ -215,37 +204,24 @@ PR #8 的 review 抓到新增表單沒有 `ScrollView`、鍵盤會蓋住送出�
 
 兩種都不碰的改動不必跑。
 
-```bash
-SE="iPhone SE (3rd generation)"
+跑這一關時有**三件事不做就等於沒驗到**，而且三件都不會報錯，只會給你一張看起來通過的圖：
 
-# 1. 軟鍵盤：模擬器預設是「連著硬體鍵盤」，不關掉的話點進欄位不會有鍵盤，
-#    截出來的圖看起來一切正常 —— 這一關就白跑了。改完要重開 Simulator 才生效。
-defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
-osascript -e 'tell application "Simulator" to quit'
+- **模擬器預設連著硬體鍵盤**，不關掉的話點進欄位根本不會有軟鍵盤
+  （`I/O > Keyboard > Connect Hardware Keyboard`，或 `ConnectHardwareKeyboard` 這個
+  偏好設定 —— 它是**全機器**的，動了要記得自己還原）
+- **`simctl launch` 對已經在跑的 app 只會叫到前景**，啟動參數整組被忽略，
+  你截到的是上一次留下的畫面。要嘛先 `simctl terminate`，要嘛加 `--terminate-running-process`
+- **`simctl boot` 是無頭的**，沒有 Simulator 視窗就沒有東西可以點。要 `open -a Simulator`
 
-# 2. 開機，而且要開 GUI —— simctl boot 是無頭的，沒有視窗可以點
-xcrun simctl boot "$SE" 2>/dev/null
-open -a Simulator
-xcrun simctl bootstatus "$SE" -b
+點欄位那一步**沒有辦法自動化** —— `simctl` 送不出點擊，AppleScript 的 `click at`
+要終端機的輔助使用權限（沒有就只拿到 `-25204`）。這一關本來就是人眼驗收，
+不要為了讓它「一行跑完」而把叫鍵盤那一步省掉。
 
-# 3. 剛建好的機器上沒有 app，要先裝
-xcodebuild -scheme WhereAreYou -destination "platform=iOS Simulator,name=$SE,OS=26.1" build
-xcrun simctl install "$SE" \
-  "$(ls -dt ~/Library/Developer/Xcode/DerivedData/WhereAreYou-*/Build/Products/Debug-iphonesimulator/WhereAreYou.app | head -1)"
-
-# 4. --terminate-running-process 不可省：app 已經在跑的話，launch 只會把它叫到前景，
-#    新的啟動參數整組被忽略，於是你截到的是上一次留下的畫面
-xcrun simctl launch --terminate-running-process "$SE" com.chienchuanw.whereareyou \
-  -open-container 登山包 -add-item
-
-# 5. 手動點進名稱欄，等鍵盤升起，再截圖
-xcrun simctl io "$SE" screenshot /tmp/se.png
-```
-
-**第 5 步是手動的，而且沒有辦法自動化** —— `simctl` 送不出點擊，AppleScript 的
-`click at` 需要終端機的輔助使用權限（沒有的話只會拿到 `-25204`）。這一關本來就是
-人眼驗收，照著點就好，不要為了讓它「一行跑完」而把叫鍵盤那一步省掉 —— 省掉就等於
-沒有驗到，而且截圖會顯示一切正常。
+**這一段刻意只寫規則，不寫可以複製的指令稿。** 上一版在這裡放了三十行 shell，
+三輪 review 抓出它在 `bash` 下跑不動、會裝到別的 checkout 的 build、
+會把 `iPhone 16` 一起關掉、還會留下沒還原的全機設定。寫在 Markdown 裡的 shell
+沒有辦法被執行、被測、被 review —— 它只會看起來像個流程。
+真的要固化成指令，正確的位置是一支進版控、跑得起來的 `scripts/*.sh`，那是另一支 PR。
 
 **基準機的尺寸是可以一行指令驗證的事實，不要靠記憶寫進文件。** 直接讀 device type 的
 profile，**不需要開機**，而且印出來的是 pt（Figma 對照依賴的單位），縮放比是算出來的、
@@ -282,15 +258,16 @@ pt 還是得自己換算。要驗尺寸就讀 profile。）
 **四個會被誤讀成程式碼壞掉的環境問題**：
 
 - `xcodebuild: error: Unable to find a device matching the provided destination specifier`
-  **不是程式碼問題**，而且有兩種原因。用上一節那段**限定 runtime** 的檢查分辨
-  （不要用不分 runtime 的 `grep`，它會把只存在於 26.5 的同名裝置報成「已經有了」，
-  然後你就在這兩個錯誤之間繞圈）：最可能是**這台機器還沒建過**，照 `simctl create` 補；
-  若是 Xcode 升級換掉了整批模擬器，才是把 `-destination`、上面那一節、
-  以及 `Sources/App/DebugLaunch.swift` 的示例指令**一起**改掉，不要讓下一個人再撞一次
+  **不是程式碼問題**，而且有兩種原因。`xcrun simctl list devices available` 之後
+  **要看它落在哪個 runtime 分段底下** —— 只存在於 26.5 的同名裝置不算數，
+  漏看這件事就會在「明明有」與「找不到」之間繞圈：最可能是**這台機器還沒建過**，
+  照上面的 `simctl create` 補；若是 Xcode 升級換掉了整批模擬器，才是把 `-destination`、
+  上面那一節、以及 `Sources/App/DebugLaunch.swift` 的示例指令**一起**改掉
 - `Unable to lookup in current state: Shutdown`／`Timeout waiting for screen surfaces`
-  是**指名到一台沒開機的裝置**，不是程式碼問題。多半是同名裝置跨 runtime 重複了，
-  名稱打到了另一台。先 `xcrun simctl list devices available` 看有幾台同名的，
-  再 `simctl boot` + `simctl bootstatus -b`；重複的就刪掉一台
+  是**指名到一台沒開機的裝置**，不是程式碼問題。兩個常見來源：同名裝置跨 runtime 重複、
+  名稱打到了另一台；或是剛剛退出過 Simulator（**那會把所有裝置一起關掉**，
+  包括你上一步才開好的那台）。`xcrun simctl list devices available` 看有幾台同名的、
+  各自什麼狀態，再 `simctl boot` + `simctl bootstatus -b`；重複的就刪掉一台
 - `Simulator device failed to launch ... Busy ("Application failed preflight checks")`
   是模擬器卡住，不是程式碼問題。`xcrun simctl shutdown all` 之後重跑即可
 - `Build input files cannot be found: .../Node.swift` 通常代表 `.xcodeproj` 是別的分支
