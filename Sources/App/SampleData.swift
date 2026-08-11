@@ -9,6 +9,15 @@ import SwiftData
 /// 的 mock 內容建，讓截圖對照有意義。
 ///
 /// 只在資料庫是空的時候寫入，所以不會蓋掉手動建的資料。Release 版整支不編譯。
+///
+/// **已知落差：這裡的節點是直接建出來的，沒有走 §4.5c 的建檔流程，所以絕大多數沒有
+/// `MoveEvent`。** 真正的 app 裡每個節點都會有一筆建檔紀錄，這裡只有五個有 ——
+/// 於是詳細頁在大部分節點上會顯示「還沒有任何紀錄」，而 §4.4e 把那句話定義成
+/// 「寫入路徑漏了」的異常訊號。在種子資料上它不是異常，是這份資料的捷徑。
+///
+/// 補法不是在這裡補一筆建檔事件了事：那會讓「最近用過的容器」（§4.3a 只取最新三個）
+/// 被幾十筆同一時刻的建檔事件灌爆，而那一組有自己的 frame 要對照。要做就得讓每一筆
+/// 建檔事件有各自的時間、並重新驗收「它在哪？」那支畫面 —— 那是它自己的一件事。
 enum SampleData {
 
     static func seedIfEmpty(_ context: ModelContext) {
@@ -84,35 +93,49 @@ enum SampleData {
         for name in ["行照", "雨傘", "面紙", "手機架", "充電座"] { _ = node(name, in: car) }
 
         seedHistory(context, raincoat: balcony, drawer: drawer, hikingBag: hikingBag)
-        seedDetailHistory(context, passport: passport, safe: safe, hikingBag: hikingBag,
-                          drawer: drawer, study: study)
+        seedDetailHistory(context, passport: passport, safe: safe,
+                          hikingBag: hikingBag, drawer: drawer)
     }
 
     /// 詳細頁（SPEC §4.4）要對照的兩支 frame 各需要一段歷史。
     ///
-    /// **日期刻意用固定的、而且都比 `seedHistory` 那三筆舊。** 「最近用過的容器」只取最新的
-    /// 三個（§4.3a），這裡若用相對於今天的日期就會擠掉那一組，連帶讓「它在哪？」sheet
-    /// 與它的 frame 對不起來 —— 那是另一支畫面的驗收，不該被這一支的種子資料弄壞。
+    /// **這一段有三個限制，少守一個就會弄壞別支畫面的驗收：**
+    ///
+    /// 1. **月日要與 SPEC §4.4 的範例一字不差**，否則詳細頁的截圖對不上它自己的 frame
+    /// 2. **年份用去年**，讓這幾筆比 `seedHistory` 那三筆舊。「最近用過」只取最新三個（§4.3a）
+    /// 3. **舊還不夠，`to` 不能是新的容器。** 上限是在排除之後才套用的（§4.3a 講得很明白），
+    ///    所以舊事件不會被擠掉，而是往後遞補。這裡三筆的目的地分別是保險箱（寫完就刪掉）、
+    ///    登山包與書房抽屜（本來就已經在那一組裡，去重之後名次不動），所以那一組不會多一列
     private static func seedDetailHistory(
-        _ context: ModelContext, passport: Node, safe: Node, hikingBag: Node,
-        drawer: Node, study: Node
+        _ context: ModelContext, passport: Node, safe: Node, hikingBag: Node, drawer: Node
     ) {
         func at(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
             var c = DateComponents()
-            c.year = 2026; c.month = month; c.day = day; c.hour = hour; c.minute = minute
+            c.year = Calendar.current.component(.year, from: Date()) - 1
+            c.month = month; c.day = day; c.hour = hour; c.minute = minute
             return Calendar.current.date(from: c) ?? Date()
         }
 
         // 護照走過的路：建檔在保險箱 → 帶去登山包 → 收進書房抽屜（它現在的位置）
         context.insert(MoveEvent(node: passport, from: nil, to: safe,
-                                 at: at(3, 1, 11, 3)))
+                                 at: at(6, 1, 11, 3)))
         context.insert(MoveEvent(node: passport, from: safe, to: hikingBag,
-                                 at: at(5, 22, 9, 14), placemark: "大安區"))
+                                 at: at(7, 22, 9, 14), placemark: "大安區"))
         context.insert(MoveEvent(node: passport, from: hikingBag, to: drawer,
-                                 at: at(6, 9, 20, 20), placemark: "信義區"))
+                                 at: at(8, 9, 20, 20), placemark: "信義區"))
 
-        // 書房抽屜自己也是一個 Node，也有它的檔案 —— 這是 `Item — Detail — Container` 那一支。
-        context.insert(MoveEvent(node: drawer, from: nil, to: study, at: at(1, 5, 9, 30)))
+        // 登山包自己也有檔案 —— 這是 `Item — Detail — Container` 那一支。
+        // 它是頂層節點，所以 `to` 是 nil：時間軸讀作「建檔，不在任何容器裡」，
+        // 而 `to` 為 nil 的事件不會進「最近用過」那一組（那一組取的就是 `to`）。
+        context.insert(MoveEvent(node: hikingBag, from: nil, to: nil, at: at(4, 18, 8, 5)))
+
+        // **保險箱寫完歷史就刪掉。** 兩個理由，都是為了不弄壞別的畫面：
+        // 多一個節點會把書房從 18 件推成 19 件（§4.1 與 Home frame 都釘死 18）；
+        // 而它留著就會遞補進「最近用過」的第三格。
+        //
+        // 刪掉之後歷史照樣讀得出「保險箱」—— 那正是 §2.2 存名稱快照的理由，
+        // 這幾筆順便把那個行為在實機上演一次。
+        context.delete(safe)
     }
 
     /// 「它在哪？」sheet 的第一組選項讀的是 `MoveEvent`（見 SPEC §4.4b）。上面那棵樹是

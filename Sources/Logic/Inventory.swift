@@ -66,8 +66,7 @@ struct InventorySummary {
         // 缺件數為 0 時整段不出現，不寫「缺 0」。
         if missingCount > 0 { parts.append("缺 \(missingCount)") }
 
-        let components = Calendar.current.dateComponents([.month, .day], from: lastUpdated)
-        parts.append("\(components.month ?? 0) 月 \(components.day ?? 0) 日更新")
+        parts.append(Wording.monthDay(lastUpdated) + "更新")
         return parts.joined(separator: " · ")
     }
 }
@@ -97,7 +96,7 @@ extension Node {
                 status: .missing,
                 // parent 為 nil 有兩種原因：本來就在頂層，或它的容器被刪掉了。
                 // 兩種對使用者是同一句話 —— 它不在任何容器裡。
-                subtitle: item.parent.map { "在\($0.name)" } ?? "不在任何容器裡"
+                subtitle: item.parent.map { "在\($0.name)" } ?? Wording.noContainer
             )
         }
 

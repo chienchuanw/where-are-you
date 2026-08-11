@@ -227,6 +227,36 @@ struct ItemDetailTests {
         #expect(pouch.inventoryLinkText == "裡面有 1 件")
         #expect(passport.inventoryLinkText == nil)
     }
+
+    /// 出現的條件是「盤點頁列得出東西」，不是「有子節點」。用後者當條件的話，
+    /// 一個被搬空的包就再也進不去自己的盤點頁 —— 而那正是使用者要把東西一件件
+    /// 標回來的地方。見 §4.4c。
+    @Test("被搬空但還有缺件的容器，仍然進得去自己的盤點頁")
+    func inventoryLinkForEmptiedContainerWithMissingItems() throws {
+        let context = try makeContext()
+        let study = Node(name: "書房")
+        let cameraBag = Node(name: "相機包", parent: study)
+        // 兩件東西歸屬在相機包，但人都在書房 —— 相機包自己是空的
+        let camera = Node(name: "相機", parent: study, home: cameraBag)
+        let lens = Node(name: "鏡頭", parent: study, home: cameraBag)
+        [study, cameraBag, camera, lens].forEach(context.insert)
+
+        #expect(cameraBag.childNodes.isEmpty)
+        #expect(cameraBag.subtreeCount == 0)
+        // 盤點頁列得出兩列缺件，所以那一列要在；件數是真的 0
+        #expect(cameraBag.inventoryRows.count == 2)
+        #expect(cameraBag.inventoryLinkText == "裡面有 0 件")
+    }
+
+    @Test("真的什麼都沒有的容器才沒有那一列")
+    func noInventoryLinkWhenNothingToShow() throws {
+        let context = try makeContext()
+        let empty = Node(name: "保險箱")
+        context.insert(empty)
+
+        #expect(empty.inventoryRows.isEmpty)
+        #expect(empty.inventoryLinkText == nil)
+    }
 }
 
 /// 跨持久化邊界的詳細頁測試 —— `save()` 之後重新 fetch 再斷言。

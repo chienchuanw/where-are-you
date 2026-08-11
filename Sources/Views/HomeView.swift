@@ -69,20 +69,23 @@ struct HomeView: View {
             let pinned = Library.pinned(among: nodes)
             if !pinned.isEmpty {
                 SectionHeader(label: "釘選")
-                rows(pinned)
+                rows(pinned, destination: Route.container)
             }
 
             let places = Library.places(among: nodes)
             if !places.isEmpty {
                 SectionHeader(label: "地點")
-                rows(places)
+                rows(places, destination: Route.container)
             }
         }
     }
 
-    private func rows(_ group: [Node]) -> some View {
+    /// 釘選與地點直接進盤點頁（那兩組的角色是「我要核這個包」），
+    /// **搜尋結果進詳細頁** —— 搜尋撈出來的多半是葉節點，送進盤點頁只會看到
+    /// 一個寫著「還沒有東西」的空畫面。見 `docs/SPEC.md` §4.4c。
+    private func rows(_ group: [Node], destination: @escaping (Node) -> Route) -> some View {
         ForEach(group) { node in
-            NavigationLink(value: Route.container(node)) { ContainerRow(node: node) }
+            NavigationLink(value: destination(node)) { ContainerRow(node: node) }
                 .buttonStyle(.plain)
         }
     }
@@ -135,7 +138,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     SectionHeader(label: "搜尋結果")
-                    rows(results)
+                    rows(results, destination: Route.item)
                 }
             }
             .scrollDismissesKeyboard(.interactively)
