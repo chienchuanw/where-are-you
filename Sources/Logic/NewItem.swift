@@ -66,8 +66,11 @@ struct NewItemDraft {
     /// 歸屬地那一列上顯示的值。
     var homeLabel: String {
         guard homeIsExplicit else { return "同位置" }
-        return home?.name ?? "不放在任何容器裡"
+        return home?.name ?? MoveDestination.topLevelName
     }
+
+    /// 位置那一列上顯示的值。
+    var locationLabel: String { location?.name ?? MoveDestination.topLevelName }
 
     mutating func setLocation(_ node: Node?) {
         location = node
@@ -77,6 +80,11 @@ struct NewItemDraft {
     }
 
     mutating func setHome(_ node: Node?) {
+        // 挑了畫面上已經生效的那一個，不算選過。那一下什麼都沒改變，脫鉤卻已經發生 ——
+        // 接著改位置就會建出一筆立刻被算成缺件的資料。脫鉤是看不見的狀態，
+        // 只有真的改變了值才值得付出這個代價。見 `docs/SPEC.md` §4.5a。
+        guard node !== home else { return }
+
         home = node
         // 選「不放在任何容器裡」也是一次選擇，不是「還沒選」。
         homeIsExplicit = true
@@ -99,6 +107,22 @@ struct NewItemDraft {
         // from 為 nil 代表建檔，見 `docs/SPEC.md` §2.2。
         context.insert(MoveEvent(node: node, from: nil, to: location, at: node.createdAt))
         return node
+    }
+
+    /// 把一次剛建好、但存不進資料庫的建檔收回來。
+    ///
+    /// 存檔失敗時**當作沒建過**：建檔是憑空多一筆，收回之後記憶體與磁碟又完全一致，
+    /// 等於那個動作沒發生過。移動不能這樣處理（改的是既有節點，改回去會變成第三種說法），
+    /// 但這裡可以。不收回的話，這一頁會表演出一次成功 —— 畫面退回去、或名稱欄清空讓你
+    /// 接著建下一件 —— 使用者於是連續建了八件，八件全部沒有落地。見 `docs/SPEC.md` §4.5c。
+    static func rollBack(_ node: Node, in context: ModelContext) {
+        for event in node.moveEvents ?? [] { context.delete(event) }
+
+        // 先從父節點卸下再刪。SwiftData 要等到存檔才把已刪物件移出關聯陣列，
+        // 少了這一步，容器的遞迴計數會把已經收回的節點算進去。
+        node.parent = nil
+        node.home = nil
+        context.delete(node)
     }
 
     /// 「再新增一件」：只清掉名稱。

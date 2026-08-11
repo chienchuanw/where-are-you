@@ -181,6 +181,92 @@ struct PersistenceBoundaryTests {
         #expect(refetched.parent == nil)
     }
 
+    // MARK: - 新增物件寫進去的那條路
+
+    @Test("建檔之後存檔，重新讀回來位置、歸屬地與歷史都還在")
+    func aNewItemSurvivesASave() throws {
+        let context = try freshContext()
+        let bag = Node(name: "登山包")
+        let drawer = Node(name: "書房抽屜")
+        context.insert(bag); context.insert(drawer)
+        try context.save()
+
+        var draft = NewItemDraft(location: bag)
+        draft.setHome(drawer)
+        draft.name = "頭燈"
+        _ = draft.create(in: context)
+        try context.save()
+
+        let nodes = try context.fetch(FetchDescriptor<Node>())
+        let headlamp = try #require(nodes.first { $0.name == "頭燈" })
+        #expect(headlamp.parent?.name == "登山包")
+        #expect(headlamp.home?.name == "書房抽屜")
+
+        // 兩邊的關聯都要對得起來，不是只有從物件看得到容器。
+        #expect(try #require(nodes.first { $0.name == "登山包" }).childNodes.map(\.name) == ["頭燈"])
+        #expect(try #require(nodes.first { $0.name == "書房抽屜" }).missingItems.map(\.name) == ["頭燈"])
+
+        let event = try #require(
+            try context.fetch(FetchDescriptor<MoveEvent>()).first { $0.nodeName == "頭燈" }
+        )
+        #expect(event.fromName == "")
+        #expect(event.toName == "登山包")
+    }
+
+    @Test("建檔之後刪掉它的歸屬地容器並存檔，物件與歷史都還讀得出來")
+    func deletingTheHomeOfANewItemLeavesEverythingReadable() throws {
+        let context = try freshContext()
+        let bag = Node(name: "登山包")
+        let drawer = Node(name: "書房抽屜")
+        context.insert(bag); context.insert(drawer)
+        try context.save()
+
+        var draft = NewItemDraft(location: bag)
+        draft.setHome(drawer)
+        draft.name = "頭燈"
+        _ = draft.create(in: context)
+        try context.save()
+
+        // 這是 `MoveEvent` 當初炸掉的那個情境：容器被刪除並存檔後再讀關聯。
+        // 建檔這條路徑寫的是同一組關聯，所以要一起守。
+        try drawer.delete(in: context)
+        try context.save()
+
+        let headlamp = try #require(
+            try context.fetch(FetchDescriptor<Node>()).first { $0.name == "頭燈" }
+        )
+        #expect(headlamp.home == nil)
+        #expect(headlamp.parent?.name == "登山包")
+
+        let event = try #require(
+            try context.fetch(FetchDescriptor<MoveEvent>()).first { $0.nodeName == "頭燈" }
+        )
+        #expect(event.toName == "登山包")
+        #expect(event.to?.name == "登山包")
+    }
+
+    @Test("收回之後存檔，資料庫裡不留任何痕跡")
+    func aRolledBackCreationLeavesNothingBehind() throws {
+        let context = try freshContext()
+        let bag = Node(name: "登山包")
+        context.insert(bag)
+        try context.save()
+
+        var draft = NewItemDraft(location: bag)
+        draft.name = "頭燈"
+        let created = try #require(draft.create(in: context))
+        NewItemDraft.rollBack(created, in: context)
+        try context.save()
+
+        // 存檔失敗時走的就是這一段。收回之後記憶體與磁碟要完全一致，
+        // 否則「留在原地、什麼都沒發生」這句話只在畫面上成立。見 `docs/SPEC.md` §4.5c。
+        #expect(try context.fetch(FetchDescriptor<Node>()).map(\.name) == ["登山包"])
+        #expect(try context.fetchCount(FetchDescriptor<MoveEvent>()) == 0)
+        #expect(try #require(
+            try context.fetch(FetchDescriptor<Node>()).first { $0.name == "登山包" }
+        ).subtreeCount == 0)
+    }
+
     // MARK: - 「它在哪？」sheet 寫進去的那條路
 
     @Test("移動之後存檔，重新讀回來位置真的變了，舊容器也不再認得它")
