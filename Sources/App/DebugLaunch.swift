@@ -33,6 +33,9 @@ enum DebugLaunch {
     /// 要與 `-move` 一起用。
     static var initialSheetSearch: String? { value(for: "-sheet-search") }
 
+    /// 啟動就從某個容器推進新增物件那一頁。要與 `-open-container` 一起用。
+    static var wantsAddItem: Bool { flag("-add-item") }
+
     private static func flag(_ name: String) -> Bool {
         ProcessInfo.processInfo.arguments.contains(name)
     }

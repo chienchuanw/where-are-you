@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import OSLog
 
 /// 首頁。對照 Figma `Screens — Light / Home`、`Home — Empty`、`Search — No Results`，
 /// 行為見 `docs/SPEC.md` §4.1 與 §4.4b。
@@ -7,6 +8,8 @@ struct HomeView: View {
     /// 分組與搜尋的語意只有一份，在 `Library` 裡。這裡拿到整包節點就轉手交給它，
     /// 畫面不重新解讀「哪些算地點」這種問題。
     @Query private var nodes: [Node]
+
+    @Environment(\.modelContext) private var context
 
     @State private var query = ""
 
@@ -40,10 +43,10 @@ struct HomeView: View {
                 EmptyStateView(
                     glyph: PlusGlyph(side: Size.iconLg),
                     title: "還沒有任何收納空間",
-                    message: "先建一個你最常翻的地方 —— 通常是每天出門會帶的那個包。",
-                    actionLabel: "建立第一個空間",
-                    action: addFirstPlace
-                )
+                    message: "先建一個你最常翻的地方 —— 通常是每天出門會帶的那個包。"
+                ) {
+                    EmptyStateAction(label: "建立第一個空間", route: .addItem(.firstPlace))
+                }
             }
         } else if isSearching {
             searchResults
@@ -75,15 +78,28 @@ struct HomeView: View {
 
     private func rows(_ group: [Node]) -> some View {
         ForEach(group) { node in
-            NavigationLink(value: node) { ContainerRow(node: node) }
+            NavigationLink(value: Route.container(node)) { ContainerRow(node: node) }
                 .buttonStyle(.plain)
         }
     }
 
     // MARK: - 搜尋
 
-    private var isSearching: Bool {
-        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isSearching: Bool { !trimmedQuery.isEmpty }
+
+    /// 搜尋落空時要猜的位置。讀不到歷史就不猜 —— 位置留空使用者自己選得到，
+    /// 但把「讀壞了」偽裝成「沒有歷史」會讓之後看不出差別。
+    private var mostRecentContainer: Node? {
+        do {
+            return try Library.recentContainers(excluding: nil, limit: 1, in: context).first
+        } catch {
+            Self.log.error("讀不到移動歷史，新增物件的位置不預填：\(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     @ViewBuilder
@@ -94,10 +110,15 @@ struct HomeView: View {
                 EmptyStateView(
                     glyph: SearchGlyph(side: Size.iconLg),
                     title: "找不到「\(query)」",
-                    message: "這個東西可能還沒建檔。要現在建一筆嗎？",
-                    actionLabel: "建立「\(query)」",
-                    action: addSearchedItem
-                )
+                    message: "這個東西可能還沒建檔。要現在建一筆嗎？"
+                ) {
+                    // 沒有 GPS 時，「你剛剛才放東西進去的那個容器」是手上最好的猜測。
+                    // 見 `docs/SPEC.md` §4.5b。
+                    EmptyStateAction(
+                        label: "建立「\(query)」",
+                        route: .addItem(.named(trimmedQuery, suggested: mostRecentContainer))
+                    )
+                }
             }
         } else {
             ScrollView {
@@ -110,9 +131,5 @@ struct HomeView: View {
         }
     }
 
-    // MARK: -
-
-    // TODO: 新增流程（Figma `Item — Add`）不在這一支分支的範圍內，按鈕還沒有去處。
-    private func addFirstPlace() {}
-    private func addSearchedItem() {}
+    private static let log = Logger(subsystem: "com.chienchuanw.whereareyou", category: "home")
 }
