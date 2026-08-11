@@ -9,12 +9,20 @@ import Foundation
 ///
 /// 裝置一律指名，**不要用 `booted`** —— 兩台基準機（`CLAUDE.md` 的「完成的定義」）同時開著時，
 /// `booted` 會自己挑一台，挑到 SE 就是拿 375×667 的截圖去對 393×852 的 frame。
+/// 指名的代價是它不像 `booted` 保證那台在跑，所以要自己先開機。
+///
+/// `--terminate-running-process` 不可省：app 已經在跑的話，`launch` 只會把它叫到前景，
+/// 下面這些參數整組被忽略，截到的是上一次留下的畫面。
+///
+/// 這裡的裝置名稱與 `CLAUDE.md`「完成的定義」是同一個，換基準機時兩邊要一起改。
 ///
 /// ```
-/// xcrun simctl launch "iPhone 16" com.chienchuanw.whereareyou -open-container 登山包
-/// xcrun simctl launch "iPhone 16" com.chienchuanw.whereareyou -search 腳架
-/// xcrun simctl launch "iPhone 16" com.chienchuanw.whereareyou -empty-store
-/// xcrun simctl launch "iPhone 16" com.chienchuanw.whereareyou -open-container 登山包 -move 頭燈
+/// xcrun simctl boot "iPhone 16" 2>/dev/null; xcrun simctl bootstatus "iPhone 16" -b
+///
+/// xcrun simctl launch --terminate-running-process "iPhone 16" com.chienchuanw.whereareyou -open-container 登山包
+/// xcrun simctl launch --terminate-running-process "iPhone 16" com.chienchuanw.whereareyou -search 腳架
+/// xcrun simctl launch --terminate-running-process "iPhone 16" com.chienchuanw.whereareyou -empty-store
+/// xcrun simctl launch --terminate-running-process "iPhone 16" com.chienchuanw.whereareyou -open-container 登山包 -move 頭燈
 /// ```
 enum DebugLaunch {
     /// 不寫入種子資料，用來看 `Home — Empty`。

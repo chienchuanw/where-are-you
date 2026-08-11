@@ -138,11 +138,18 @@ xcodegen && xcodebuild -scheme WhereAreYou -destination 'platform=iOS Simulator,
 
 這兩台**通常不在 Xcode 的預設清單裡**。先查再建，不要無條件跑 `create` ——
 `simctl` 不擋同名裝置，建重複了 `-destination` 的 `name=` 就會指向兩台，
-`xcodebuild` 要不是拒絕，就是安靜地跑在那台剛建好、從沒開機的替身上：
+`xcodebuild` 要不是拒絕，就是安靜地跑在那台剛建好、從沒開機的替身上。
+
+**檢查一定要限定 runtime。** `simctl list devices` 是按 runtime 分段印的，
+不分段去比對，一台只存在於 26.5 的同名裝置會被當成「已經有了」，
+然後 `-destination ...,OS=26.1` 照樣找不到它，而故障排除又會把你送回同一個檢查：
 
 ```bash
+RT="com.apple.CoreSimulator.SimRuntime.iOS-26-1"
 for D in "iPhone 16" "iPhone SE (3rd generation)"; do
-  xcrun simctl list devices available | grep -q "^    $D (" || echo "缺 $D，要建"
+  xcrun simctl list devices available -j \
+    | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'].get('$RT',[]);\
+print('OK' if any(x['name']=='''$D''' for x in d) else '缺 $D，要建')"
 done
 ```
 
@@ -157,7 +164,20 @@ xcrun simctl create "iPhone SE (3rd generation)" \
 
 **截圖與啟動一律指名裝置，不要用 `booted`。** 同時開著兩台基準機時 `booted` 會自己挑一台，
 挑到 SE 就是拿 375×667 的截圖去對 393×852 的 frame —— 對照的結論整組作廢，而且不會有人發現。
-`DebugLaunch.swift` 註解裡的示例指令已經改成指名 `"iPhone 16"`，照抄即可。
+
+**但指名裝置換掉了一個保證，要自己補回來。** `booted` 至少保證「打到的那台是開著的」，
+指名不保證 —— 名稱對到一台 Shutdown 的（例如上面那種跨 runtime 的重複），
+`launch` 會吐 `Unable to lookup in current state: Shutdown`，
+`io ... screenshot` 則是卡住之後吐 `Timeout waiting for screen surfaces`。
+所以指名之前先開機，而且要等它真的開完：
+
+```bash
+xcrun simctl boot "iPhone 16" 2>/dev/null   # 已經開著會報錯，忽略即可
+xcrun simctl bootstatus "iPhone 16" -b
+```
+
+`DebugLaunch.swift` 註解裡的示例指令已經改成指名 `"iPhone 16"` 並帶上這兩行。
+**那支檔案裡也寫死了裝置名稱** —— 之後基準機換型號時，它跟這一節要一起改。
 
 **為什麼是 iPhone 16：** 它與 Figma frame 同為 393×852，截圖可以直接疊上去比，
 不必先在腦裡扣掉一個差值。差值只要存在，就會變成「這 3pt 應該是機身差吧」的藉口，
@@ -166,9 +186,10 @@ xcrun simctl create "iPhone SE (3rd generation)" \
 在 26.1 上都可以頂替，不要因為 16 建不出來就放棄逐項對照。
 
 **但垂直位置對不上，而且那是對的。** 實測同一支首頁：大標題上緣在 iPhone 16 落在 64.3pt、
-在 16e 落在 52.3pt，差 12pt。原因是安全區 —— 每一台 393×852 的機型都有動態島（59pt），
-而 16e 是瀏海（47pt）。Figma `NavBar` 的上內距 52 是狀態列的**預留佔位，不是 token**，
-元件說明已經寫明「程式碼不複製它，交給系統的 safe area」。
+在 16e 落在 52.3pt，**差 12pt**（這兩個數字是量的，不是算的）。原因是安全區高度不同：
+所有 393×852 的機型都是動態島，16e 是瀏海，前者的上安全區比後者高。
+Figma `NavBar` 的上內距 52 是狀態列的**預留佔位，不是 token**，元件說明已經寫明
+「程式碼不複製它，交給系統的 safe area，真實裝置的安全區高度各機不同」。
 
 所以對照時**比的是安全區以下的相對節奏，不是絕對 y 座標**。整頁一起下移不是 bug，
 不要去「修」它；真正要看的是列高、群組間距、左右內距這些相對量。
@@ -179,16 +200,46 @@ PR #8 的 review 抓到新增表單沒有 `ScrollView`、鍵盤會蓋住送出�
 完全正常，在 667pt 上流程直接走不完。只用一台高機身等於對這類問題全盲，
 而截圖對照剛好是最不可能發現它的驗收方式（截圖裡沒有鍵盤）。
 
-**所以 SE 是一個真的關卡，不是一列說明。** 只要這次改動碰到**任何有輸入欄位的畫面**
-（表單、搜尋列、sheet 裡的搜尋），宣稱做完之前必須在 SE 上跑起來、**把鍵盤叫出來**，
-確認送出鍵與最後一列仍然按得到，並貼出那張截圖。沒有輸入欄位的改動不必跑。
+**所以 SE 是一個真的關卡，不是一列說明。** 兩種改動要跑它：
+
+1. **碰到任何有輸入欄位的畫面**（表單、搜尋列、sheet 裡的搜尋）—— 要把鍵盤叫出來，
+   確認送出鍵與最後一列仍然按得到
+2. **碰到任何有可能長到超過一頁的內容**（清單、時間軸、可增長的表單）—— 不必叫鍵盤，
+   但要確認它在 667pt 上捲得動、不是被裁掉
+
+兩種都不碰的改動不必跑。
 
 ```bash
-xcrun simctl boot "iPhone SE (3rd generation)"
-xcrun simctl launch "iPhone SE (3rd generation)" com.chienchuanw.whereareyou -open-container 登山包 -add-item
-# 點進名稱欄叫出鍵盤，再截圖
-xcrun simctl io "iPhone SE (3rd generation)" screenshot /tmp/se.png
+SE="iPhone SE (3rd generation)"
+
+# 1. 軟鍵盤：模擬器預設是「連著硬體鍵盤」，不關掉的話點進欄位不會有鍵盤，
+#    截出來的圖看起來一切正常 —— 這一關就白跑了。改完要重開 Simulator 才生效。
+defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+osascript -e 'tell application "Simulator" to quit'
+
+# 2. 開機，而且要開 GUI —— simctl boot 是無頭的，沒有視窗可以點
+xcrun simctl boot "$SE" 2>/dev/null
+open -a Simulator
+xcrun simctl bootstatus "$SE" -b
+
+# 3. 剛建好的機器上沒有 app，要先裝
+xcodebuild -scheme WhereAreYou -destination "platform=iOS Simulator,name=$SE,OS=26.1" build
+xcrun simctl install "$SE" \
+  "$(ls -dt ~/Library/Developer/Xcode/DerivedData/WhereAreYou-*/Build/Products/Debug-iphonesimulator/WhereAreYou.app | head -1)"
+
+# 4. --terminate-running-process 不可省：app 已經在跑的話，launch 只會把它叫到前景，
+#    新的啟動參數整組被忽略，於是你截到的是上一次留下的畫面
+xcrun simctl launch --terminate-running-process "$SE" com.chienchuanw.whereareyou \
+  -open-container 登山包 -add-item
+
+# 5. 手動點進名稱欄，等鍵盤升起，再截圖
+xcrun simctl io "$SE" screenshot /tmp/se.png
 ```
+
+**第 5 步是手動的，而且沒有辦法自動化** —— `simctl` 送不出點擊，AppleScript 的
+`click at` 需要終端機的輔助使用權限（沒有的話只會拿到 `-25204`）。這一關本來就是
+人眼驗收，照著點就好，不要為了讓它「一行跑完」而把叫鍵盤那一步省掉 —— 省掉就等於
+沒有驗到，而且截圖會顯示一切正常。
 
 **基準機的尺寸是可以一行指令驗證的事實，不要靠記憶寫進文件。** 直接讀 device type 的
 profile，**不需要開機**，而且印出來的是 pt（Figma 對照依賴的單位），縮放比是算出來的、
@@ -211,21 +262,29 @@ pt 還是得自己換算。要驗尺寸就讀 profile。）
 「一頁塞得下多少」的那一個。這個錯誤在文件裡活了好幾輪。
 
 **同時要澄清一件事，免得下一個人也弄反：** PR #5 記錄的「整體差 2–3pt 來自狀態列高度
-（Figma 畫 52，iPhone 16e 的安全區是 47）」**不是**這個錯誤造成的，那筆歸因是對的，
-講的是上面說的安全區差異。兩件事各自獨立：機身尺寸寫錯是一回事，狀態列預留對不上是另一回事，
-換基準機只解決前者。
+（Figma 畫 52，iPhone 16e 的安全區是 47）」**不是**機身尺寸寫錯造成的。它指的是
+安全區那個軸，與寬高是兩件獨立的事 —— 換基準機只解決後者。
+
+至於那個數字本身**不要再拿來當依據**：52 − 47 是 5，不是 2–3，當初怎麼量的已經不可考。
+真正量得出來、也複製得出來的是上面那條（大標題上緣 64.3 vs 52.3，差 12pt）。
+留這一段是為了說明「有兩個軸」，不是為了背書那個 pt 數。
 
 **已經通過的畫面是在 390×844 上對照的。** 那 9 支 Screens 的「逐項對照」結論嚴格說並不成立。
 不為此另開一支 PR 回頭重掃，但**下次因為別的理由動到某一支畫面時，順手在 iPhone 16 上重對一次**，
 這比一次性的大掃除更可能真的發生。
 
-**三個會被誤讀成程式碼壞掉的環境問題**：
+**四個會被誤讀成程式碼壞掉的環境問題**：
 
 - `xcodebuild: error: Unable to find a device matching the provided destination specifier`
-  **不是程式碼問題**，而且有兩種原因，先用 `xcrun simctl list devices available` 分辨：
-  上面那兩台基準機不是預設就有的，最可能是**這台機器還沒建過**，照上一節的 `simctl create` 補；
-  若是 Xcode 升級換掉了整批模擬器，才是把 `-destination` 與上面那一節一起改掉，
-  不要讓下一個人再撞一次
+  **不是程式碼問題**，而且有兩種原因。用上一節那段**限定 runtime** 的檢查分辨
+  （不要用不分 runtime 的 `grep`，它會把只存在於 26.5 的同名裝置報成「已經有了」，
+  然後你就在這兩個錯誤之間繞圈）：最可能是**這台機器還沒建過**，照 `simctl create` 補；
+  若是 Xcode 升級換掉了整批模擬器，才是把 `-destination`、上面那一節、
+  以及 `Sources/App/DebugLaunch.swift` 的示例指令**一起**改掉，不要讓下一個人再撞一次
+- `Unable to lookup in current state: Shutdown`／`Timeout waiting for screen surfaces`
+  是**指名到一台沒開機的裝置**，不是程式碼問題。多半是同名裝置跨 runtime 重複了，
+  名稱打到了另一台。先 `xcrun simctl list devices available` 看有幾台同名的，
+  再 `simctl boot` + `simctl bootstatus -b`；重複的就刪掉一台
 - `Simulator device failed to launch ... Busy ("Application failed preflight checks")`
   是模擬器卡住，不是程式碼問題。`xcrun simctl shutdown all` 之後重跑即可
 - `Build input files cannot be found: .../Node.swift` 通常代表 `.xcodeproj` 是別的分支
