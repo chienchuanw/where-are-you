@@ -113,7 +113,9 @@ enum SampleData {
             var c = DateComponents()
             c.year = Calendar.current.component(.year, from: Date()) - 1
             c.month = month; c.day = day; c.hour = hour; c.minute = minute
-            return Calendar.current.date(from: c) ?? Date()
+            // 後備刻意用很久以前而不是 `Date()`：這幾筆的全部價值就在於「比既有那三筆舊」，
+            // 掉成現在會同時弄壞時間軸的對照與「最近用過」那一組，而且不會有任何徵兆。
+            return Calendar.current.date(from: c) ?? .distantPast
         }
 
         // 護照走過的路：建檔在保險箱 → 帶去登山包 → 收進書房抽屜（它現在的位置）

@@ -26,9 +26,8 @@ struct ItemDetailView: View {
                         ValueFieldRow(label: "備註", value: note)
                     }
 
-                    if let link = node.inventoryLinkText {
-                        InventoryLinkRow(text: link, route: .container(node))
-                    }
+                    // 永遠出現，包括 0 件 —— 任何條件都會生出到不了的盤點頁（§4.4c）
+                    InventoryLinkRow(text: node.inventoryLinkText, route: .container(node))
 
                     SectionHeader(label: "移動歷史")
                     timeline
