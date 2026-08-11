@@ -21,11 +21,11 @@ extension MoveEvent {
     /// 空字串有語意：`fromName` 空代表建檔，`toName` 空代表移到頂層。
     var timelineTitle: String {
         switch (fromName.isEmpty, toName.isEmpty) {
-        case (true, true):   "建檔，不在任何容器裡"
+        case (true, true):   "建檔，\(Wording.noContainer)"
         case (true, false):  "建檔於\(toName)"
         // 移到頂層仍然用箭頭：每一列同一個形狀，眼睛只要學一次，
         // 而箭頭左邊永遠是「這次移動之後在哪」。
-        case (false, true):  "不在任何容器裡 ← \(fromName)"
+        case (false, true):  "\(Wording.noContainer) ← \(fromName)"
         case (false, false): "\(toName) ← \(fromName)"
         }
     }
@@ -34,9 +34,7 @@ extension MoveEvent {
     ///
     /// 日期格式與 §4.2d 的標頭同一個 —— 同一支 app 裡的日期只該有一種長相。
     var timelineMeta: String {
-        let c = Calendar.current.dateComponents([.month, .day, .hour, .minute], from: at)
-        let hhmm = String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
-        var text = "\(c.month ?? 0) 月 \(c.day ?? 0) 日 \(hhmm)"
+        var text = Wording.monthDayTime(at)
         if let placemark, !placemark.isEmpty { text += " · \(placemark)" }
         return text
     }
@@ -65,7 +63,7 @@ extension Node {
 
     /// 目前位置。頂層不是「沒有值」，而是一個講得出來的狀態（§4.2b 也是這個說法）。
     var currentLocationText: String {
-        parent?.name ?? "不在任何容器裡"
+        parent?.name ?? Wording.noContainer
     }
 
     /// 歸屬地。沒設定時那一列**仍然要在** —— 「沒有歸屬地」是關於這件東西的事實
@@ -81,11 +79,17 @@ extension Node {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// 進這個容器盤點頁的那一列。沒有子節點就沒有這一列。
+    /// 進這個容器盤點頁的那一列。
     ///
-    /// N 用遞迴件數（§3.1），與首頁、盤點頁標頭同一個數字。
+    /// 出現的條件是**它的盤點頁列得出東西**，不是「它有子節點」—— 盤點頁列的是
+    /// 直接子節點 ∪ 缺件（§4.2a）。一個包被帶出去、裡面的東西又各自被拿走時，
+    /// 它的子節點是空的，但歸屬在它底下的東西仍然會以 `✗` 列在它的盤點頁上，
+    /// 而那正是使用者要去把它們標回來的地方。用子節點當條件會讓那一頁到不了。
+    ///
+    /// N 用遞迴件數（§3.1），與首頁、盤點頁標頭同一個數字，所以上述情況會是「裡面有 0 件」。
+    /// 那是真的：東西確實都不在裡面，點進去正好看到它們跑到哪了。
     var inventoryLinkText: String? {
-        let count = subtreeCount
-        return count > 0 ? "裡面有 \(count) 件" : nil
+        guard !inventoryRows.isEmpty else { return nil }
+        return "裡面有 \(subtreeCount) 件"
     }
 }
