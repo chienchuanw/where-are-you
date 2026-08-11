@@ -151,6 +151,70 @@ struct PickerFieldRow: View {
     }
 }
 
+/// 表單列的唯讀版（Figma `FieldRow/Type=Text` 的值列，沒有輸入也沒有「更改」）。
+///
+/// 詳細頁這一版是唯讀的（`docs/SPEC.md` §4.4a）—— 編輯要等 Figma 先長出修改的入口。
+struct ValueFieldRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            FieldLabel(text: label)
+
+            Text(value)
+                .typography(.body)
+                .foregroundStyle(Color.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, Spacing.lg)
+        .overlay(alignment: .bottom) { FieldSeparator() }
+    }
+}
+
+/// 進這個容器盤點頁的那一列（Figma `Row/Inventory`）。
+///
+/// 整列即觸控目標，沒有 chevron —— v2 已經把 chevron 全部移除（`docs/SPEC.md` §9）。
+struct InventoryLinkRow: View {
+    let text: String
+    let route: Route
+
+    var body: some View {
+        NavigationLink(value: route) {
+            Text(text)
+                .typography(.body)
+                .foregroundStyle(Color.textPrimary)
+                .frame(maxWidth: .infinity, minHeight: Size.row, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 移動歷史的一列（Figma `Row/TimelineEvent`）。
+///
+/// `isCurrent` 是最新的那一筆 —— 下行走強調色，因為它的目的地就是東西現在在的地方
+/// （`docs/SPEC.md` §9、§4.4e）。左側那條縱線不在這裡，它是外層容器的邊框，
+/// 因為那條線要跨越所有列。
+struct TimelineRow: View {
+    let entry: TimelineEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text(entry.title)
+                .typography(.body)
+                .foregroundStyle(Color.textPrimary)
+
+            Text(entry.meta)
+                .typography(.footnote)
+                .foregroundStyle(entry.isCurrent ? Color.textAccent : Color.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, Spacing.sm)
+        .padding(.bottom, Spacing.lg)
+    }
+}
+
 struct SearchField: View {
     @Binding var text: String
     var placeholder: String
@@ -235,9 +299,6 @@ struct ItemRow: View {
     let row: InventoryRow
     /// 這一列的記號按下去該做什麼。`.unavailable` 時記號照畫，但不給觸控目標。
     let action: ToggleAction
-    /// 有子節點的東西在 UI 上就是容器，點名稱進得去；缺件也要進得去 ——
-    /// 那正是你要去確認它跑到哪的時候。
-    let isNavigable: Bool
     let onToggle: () -> Void
 
     var body: some View {
@@ -245,12 +306,11 @@ struct ItemRow: View {
         HStack(spacing: 0) {
             toggle
 
-            if isNavigable {
-                NavigationLink(value: Route.container(row.node)) { label }
-                    .buttonStyle(.plain)
-            } else {
-                label
-            }
+            // 每一列都通往詳細頁，不分它有沒有子節點（`docs/SPEC.md` §4.4c）。
+            // 容器的盤點頁從它的詳細頁再進一層 —— 一條規則涵蓋所有列，
+            // 容器才不會到不了自己的詳細頁。
+            NavigationLink(value: Route.item(row.node)) { label }
+                .buttonStyle(.plain)
         }
         .frame(minHeight: Size.row)
     }

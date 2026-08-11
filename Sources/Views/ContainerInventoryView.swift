@@ -35,7 +35,6 @@ struct ContainerInventoryView: View {
                                 ItemRow(
                                     row: row,
                                     action: action,
-                                    isNavigable: isNavigable(row),
                                     onToggle: { perform(action, on: row.node) }
                                 )
                             }
@@ -108,12 +107,6 @@ struct ContainerInventoryView: View {
     }
 
     // MARK: -
-
-    /// 有子節點的東西在 UI 上就是容器，點得進去自己的盤點頁；缺件也要點得進去 ——
-    /// 那正是你要去確認它跑到哪的時候。
-    private func isNavigable(_ row: InventoryRow) -> Bool {
-        !row.node.childNodes.isEmpty || row.status == .missing
-    }
 
     @ViewBuilder
     private func summary(isEmpty: Bool) -> some View {
