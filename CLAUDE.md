@@ -124,19 +124,52 @@ SwiftUI 端**不得出現任何硬編碼的顏色、間距、圓角、字級**�
 宣稱「做完了」之前，必須實際跑過並貼出輸出：
 
 ```bash
-xcodegen && xcodebuild -scheme WhereAreYou -destination 'platform=iOS Simulator,name=iPhone 16e,OS=26.1' test
+xcodegen && xcodebuild -scheme WhereAreYou -destination 'platform=iOS Simulator,name=iPhone 16,OS=26.1' test
 ```
 
-用 iPhone 16e 是因為它是 393×852，與 Figma 的 frame 尺寸一模一樣，截圖對照最省事。
-
 測試沒跑過就不要說通過。有測試失敗就直接說哪個失敗、貼輸出，不要含糊帶過。
+
+### 兩台基準機，各有各的職務
+
+| 機型 | 尺寸 | 用途 |
+|---|---|---|
+| iPhone 16 | 393×852（1179×2556 @3x） | 跑測試、截圖與 Figma frame 逐項對照 |
+| iPhone SE (3rd generation) | 375×667（750×1334 @2x） | 鍵盤遮擋與捲動的驗收 |
+
+兩台都**不是 Xcode 預設就建好的**，新機器上要先自己建：
+
+```bash
+xcrun simctl create "iPhone 16" \
+  com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-26-1
+xcrun simctl create "iPhone SE (3rd generation)" \
+  com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation com.apple.CoreSimulator.SimRuntime.iOS-26-1
+```
+
+**為什麼是 iPhone 16：** 它是目前唯一 393×852 的機型，與 Figma frame 一模一樣，
+截圖可以直接疊上去比，不必先在腦裡扣掉一個差值。差值只要存在，就會變成
+「這 3pt 應該是機身差吧」的藉口，而真正的版型錯誤就藏在那句話後面。
+
+**為什麼另外需要一台矮機身：** 有一整類 bug 只在畫面不夠高的時候看得見。
+PR #8 的 review 抓到新增表單沒有 `ScrollView`、鍵盤會蓋住送出鍵 —— 那在 852pt 上
+完全正常，在 667pt 上流程直接走不完。只用一台高機身等於對這類問題全盲，
+而截圖對照剛好是最不可能發現它的驗收方式（截圖裡沒有鍵盤）。
+
+**曾經寫錯，留著當記號：** 這一節原本寫「用 iPhone 16e 是因為它是 393×852」。
+16e 其實是 390×844。錯得不只是一個數字 —— 前一段把每次對照都有的水平差異記成
+「2–3pt 誤差（狀態列）」，歸因歸錯了，於是那個差值被當成常態接受了好幾輪。
+**基準機的尺寸是可以一行指令驗證的事實，不要靠記憶寫進文件**：
+
+```bash
+xcrun simctl io "iPhone 16" screenshot /tmp/x.png && sips -g pixelWidth -g pixelHeight /tmp/x.png
+```
 
 **三個會被誤讀成程式碼壞掉的環境問題**：
 
 - `xcodebuild: error: Unable to find a device matching the provided destination specifier`
-  是**這行指令裡的裝置名稱過期了**，不是程式碼問題。Xcode 升級會換掉整批模擬器。
-  先跑 `xcrun simctl list devices available` 看現在有什麼，再把 `-destination` 改掉，
-  順手把上面那行也更新，不要讓下一個人再撞一次
+  **不是程式碼問題**，而且有兩種原因，先用 `xcrun simctl list devices available` 分辨：
+  上面那兩台基準機不是預設就有的，最可能是**這台機器還沒建過**，照上一節的 `simctl create` 補；
+  若是 Xcode 升級換掉了整批模擬器，才是把 `-destination` 與上面那一節一起改掉，
+  不要讓下一個人再撞一次
 - `Simulator device failed to launch ... Busy ("Application failed preflight checks")`
   是模擬器卡住，不是程式碼問題。`xcrun simctl shutdown all` 之後重跑即可
 - `Build input files cannot be found: .../Node.swift` 通常代表 `.xcodeproj` 是別的分支
