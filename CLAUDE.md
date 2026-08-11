@@ -136,7 +136,17 @@ xcodegen && xcodebuild -scheme WhereAreYou -destination 'platform=iOS Simulator,
 | iPhone 16 | 393×852（1179×2556 @3x） | 跑測試、截圖與 Figma frame 逐項對照 |
 | iPhone SE (3rd generation) | 375×667（750×1334 @2x） | 鍵盤遮擋與捲動的驗收 |
 
-兩台都**不是 Xcode 預設就建好的**，新機器上要先自己建：
+這兩台**通常不在 Xcode 的預設清單裡**。先查再建，不要無條件跑 `create` ——
+`simctl` 不擋同名裝置，建重複了 `-destination` 的 `name=` 就會指向兩台，
+`xcodebuild` 要不是拒絕，就是安靜地跑在那台剛建好、從沒開機的替身上：
+
+```bash
+for D in "iPhone 16" "iPhone SE (3rd generation)"; do
+  xcrun simctl list devices available | grep -q "^    $D (" || echo "缺 $D，要建"
+done
+```
+
+真的缺了才建：
 
 ```bash
 xcrun simctl create "iPhone 16" \
@@ -145,23 +155,69 @@ xcrun simctl create "iPhone SE (3rd generation)" \
   com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation com.apple.CoreSimulator.SimRuntime.iOS-26-1
 ```
 
-**為什麼是 iPhone 16：** 它是目前唯一 393×852 的機型，與 Figma frame 一模一樣，
-截圖可以直接疊上去比，不必先在腦裡扣掉一個差值。差值只要存在，就會變成
-「這 3pt 應該是機身差吧」的藉口，而真正的版型錯誤就藏在那句話後面。
+**截圖與啟動一律指名裝置，不要用 `booted`。** 同時開著兩台基準機時 `booted` 會自己挑一台，
+挑到 SE 就是拿 375×667 的截圖去對 393×852 的 frame —— 對照的結論整組作廢，而且不會有人發現。
+`DebugLaunch.swift` 註解裡的示例指令已經改成指名 `"iPhone 16"`，照抄即可。
+
+**為什麼是 iPhone 16：** 它與 Figma frame 同為 393×852，截圖可以直接疊上去比，
+不必先在腦裡扣掉一個差值。差值只要存在，就會變成「這 3pt 應該是機身差吧」的藉口，
+而真正的版型錯誤就藏在那句話後面。**它不是唯一的選擇** —— iPhone 14 Pro / 15 / 15 Pro
+也都是 393×852，device type 都還在。挑 16 只因為它是其中最新的；上述任何一台
+在 26.1 上都可以頂替，不要因為 16 建不出來就放棄逐項對照。
+
+**但垂直位置對不上，而且那是對的。** 實測同一支首頁：大標題上緣在 iPhone 16 落在 64.3pt、
+在 16e 落在 52.3pt，差 12pt。原因是安全區 —— 每一台 393×852 的機型都有動態島（59pt），
+而 16e 是瀏海（47pt）。Figma `NavBar` 的上內距 52 是狀態列的**預留佔位，不是 token**，
+元件說明已經寫明「程式碼不複製它，交給系統的 safe area」。
+
+所以對照時**比的是安全區以下的相對節奏，不是絕對 y 座標**。整頁一起下移不是 bug，
+不要去「修」它；真正要看的是列高、群組間距、左右內距這些相對量。
+換基準機換到的是**版面寬度與可視高度**的精確，不是狀態列的精確 —— 後者沒有任何一台對得上。
 
 **為什麼另外需要一台矮機身：** 有一整類 bug 只在畫面不夠高的時候看得見。
 PR #8 的 review 抓到新增表單沒有 `ScrollView`、鍵盤會蓋住送出鍵 —— 那在 852pt 上
 完全正常，在 667pt 上流程直接走不完。只用一台高機身等於對這類問題全盲，
 而截圖對照剛好是最不可能發現它的驗收方式（截圖裡沒有鍵盤）。
 
-**曾經寫錯，留著當記號：** 這一節原本寫「用 iPhone 16e 是因為它是 393×852」。
-16e 其實是 390×844。錯得不只是一個數字 —— 前一段把每次對照都有的水平差異記成
-「2–3pt 誤差（狀態列）」，歸因歸錯了，於是那個差值被當成常態接受了好幾輪。
-**基準機的尺寸是可以一行指令驗證的事實，不要靠記憶寫進文件**：
+**所以 SE 是一個真的關卡，不是一列說明。** 只要這次改動碰到**任何有輸入欄位的畫面**
+（表單、搜尋列、sheet 裡的搜尋），宣稱做完之前必須在 SE 上跑起來、**把鍵盤叫出來**，
+確認送出鍵與最後一列仍然按得到，並貼出那張截圖。沒有輸入欄位的改動不必跑。
 
 ```bash
-xcrun simctl io "iPhone 16" screenshot /tmp/x.png && sips -g pixelWidth -g pixelHeight /tmp/x.png
+xcrun simctl boot "iPhone SE (3rd generation)"
+xcrun simctl launch "iPhone SE (3rd generation)" com.chienchuanw.whereareyou -open-container 登山包 -add-item
+# 點進名稱欄叫出鍵盤，再截圖
+xcrun simctl io "iPhone SE (3rd generation)" screenshot /tmp/se.png
 ```
+
+**基準機的尺寸是可以一行指令驗證的事實，不要靠記憶寫進文件。** 直接讀 device type 的
+profile，**不需要開機**，而且印出來的是 pt（Figma 對照依賴的單位），縮放比是算出來的、
+不是記來的：
+
+```bash
+D="iPhone 16"
+P="/Library/Developer/CoreSimulator/Profiles/DeviceTypes/$D.simdevicetype/Contents/Resources/profile.plist"
+read w h s < <(/usr/libexec/PlistBuddy -c "Print :mainScreenWidth" -c "Print :mainScreenHeight" \
+  -c "Print :mainScreenScale" "$P" | tr '\n' ' ')
+echo "$D: $(bc <<< "$w/$s")x$(bc <<< "$h/$s") pt (${w}x${h} px @${s%.*}x)"
+```
+
+（`xcrun simctl io ... screenshot` 也可以，但它**要求裝置已開機** —— 剛 `create` 出來的是
+Shutdown，那條路會卡住然後吐 `Timeout waiting for screen surfaces`，而且 `sips` 只印像素，
+pt 還是得自己換算。要驗尺寸就讀 profile。）
+
+**曾經寫錯，留著當記號：** 這一節原本寫「用 iPhone 16e 是因為它是 393×852」，
+但 16e 是 390×844 —— 寬 3pt、**高 8pt**，兩個方向都不對，而縱向那 8pt 才是影響
+「一頁塞得下多少」的那一個。這個錯誤在文件裡活了好幾輪。
+
+**同時要澄清一件事，免得下一個人也弄反：** PR #5 記錄的「整體差 2–3pt 來自狀態列高度
+（Figma 畫 52，iPhone 16e 的安全區是 47）」**不是**這個錯誤造成的，那筆歸因是對的，
+講的是上面說的安全區差異。兩件事各自獨立：機身尺寸寫錯是一回事，狀態列預留對不上是另一回事，
+換基準機只解決前者。
+
+**已經通過的畫面是在 390×844 上對照的。** 那 9 支 Screens 的「逐項對照」結論嚴格說並不成立。
+不為此另開一支 PR 回頭重掃，但**下次因為別的理由動到某一支畫面時，順手在 iPhone 16 上重對一次**，
+這比一次性的大掃除更可能真的發生。
 
 **三個會被誤讀成程式碼壞掉的環境問題**：
 
